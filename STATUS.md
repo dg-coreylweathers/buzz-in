@@ -44,7 +44,7 @@ replacement — do not force-push over it.**
 | 2 | Code-review pass | ✅ **done** — `devrel-review` skill; 2 defects found and fixed; `REVIEW.md` |
 | 3 | Sound + visual surface | ✅ **done** — 6 synthesized cues, mute, no autoplay; `check:surface` 27 structural checks |
 | 4 | Content under `/content` | ✅ **done** — 7 pieces; unit 2 deliberately untouched (F-12) |
-| 5 | Fly.io staging deploy | ⛔ **BLOCKED — logged in FLAGS.md F-14.** Fly trial ended; needs a credit card. Config committed and ready |
+| 5 | Fly.io staging deploy | ✅ **done** — live at https://buzz-in-staging.fly.dev (F-14 resolved) |
 | 6 | Push to github.com/dg-coreylweathers/buzz-in | ✅ **done** — repo created public, pushed |
 
 ## What's live
@@ -52,7 +52,22 @@ replacement — do not force-push over it.**
 | Thing | URL | State |
 |---|---|---|
 | Repo | **https://github.com/dg-coreylweathers/buzz-in** | ✅ live, public (DECISIONS.md D-09) |
-| Staging deploy | — | ⛔ blocked on Fly billing — FLAGS.md F-14 |
+| Staging deploy | **https://buzz-in-staging.fly.dev** | ✅ live, app `buzz-in-staging`, org `deepgram` |
+
+### Deploy verification, 2026-08-11
+
+| Check | Result |
+|---|---|
+| `/api/health` | ✅ `environment: staging`, key configured, roster `rufus, jack, cole, haley` |
+| Static assets | ✅ all 200 |
+| `wss://.../speak` | ✅ real voice audio (`haley`, model `2026-08-07.0`), 99838 bytes, `SpeechInterrupted` returned |
+| `wss://.../listen` | ✅ `MicReady` — staging listening session opens |
+| Key leak scan on the deployed app | ✅ absent from every served response |
+| HTTPS | ✅ enforced, http 301s to https |
+| Production | ✅ never contacted; `BUZZ_IN_ENV` pinned to staging in `fly.toml` |
+
+**The key was set via `fly secrets set` from the environment variable.** It is
+not in `fly.toml`, not in the image, and not in git.
 
 ## Headless verification — what actually passed, 2026-08-11
 
@@ -163,10 +178,8 @@ ships as `scripts/check-offset.js` in CI instead.
 
 ## Still blocked
 
-1. **Fly staging deploy** — billing, not auth (F-14). Three commands to
-   finish, in the flag.
-2. **Unit 2** — research sign-off (F-12). Expected.
-3. **Unit 1 / Partner-dev piece** — Pipecat issue link (F-11).
-4. **Unit 3** — spec pass + `Warning` code name (F-03, F-05).
-5. **Reconciling this build against the original, if one exists** (F-01) —
+1. **Unit 2** — research sign-off (F-12). Expected.
+2. **Unit 1 / Partner-dev piece** — Pipecat issue link (F-11).
+3. **Unit 3** — spec pass + `Warning` code name (F-03, F-05).
+4. **Reconciling this build against the original, if one exists** (F-01) —
    the most important item on this list.

@@ -251,7 +251,23 @@ music, and nothing here should be mistaken for one.**
 
 ---
 
-## F-14 · BLOCKER (deploy only) · 2026-08-11 · Fly.io trial has ended — staging deploy could not run
+## F-14 · ✅ RESOLVED 2026-08-11 · Fly.io staging deploy is live
+
+**Resolved.** The app deployed to the `deepgram` org (the earlier failure was
+the `personal` org's expired trial). Live at **https://buzz-in-staging.fly.dev**,
+app `buzz-in-staging`, single machine, `auto_stop_machines` on.
+
+One real defect found while deploying: **the Dockerfile never installed
+dependencies.** It predated `ws` becoming a runtime dependency, so the image
+would have booted and crashed on first import. Fixed with `npm ci --omit=dev`
+against the committed lockfile, and verified by building and booting the image
+locally before pushing it to Fly.
+
+Original report follows.
+
+---
+
+### Original: Fly.io trial has ended, staging deploy could not run
 
 **Owner:** Corey Weathers
 

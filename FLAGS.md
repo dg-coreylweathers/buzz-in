@@ -248,3 +248,40 @@ music, and nothing here should be mistaken for one.**
 - [ ] The UI tick lands **with** the word-strike animation, not after it.
 - [ ] Mute toggle actually silences everything, including a cue already in flight.
 - [ ] Nothing in the mix is loud enough to be unpleasant on headphones.
+
+---
+
+## F-14 · BLOCKER (deploy only) · 2026-08-11 · Fly.io trial has ended — staging deploy could not run
+
+**Owner:** Corey Weathers
+
+`flyctl` is installed and **authenticated** as `corey.weathers@deepgram.com`,
+so GOAL.md's "assume flyctl is authenticated" condition held. The deploy
+failed one step later, on billing:
+
+```
+Error: failed to determine region: failed to get placements:
+trial has ended, please add a credit card by visiting https://fly.io/trial
+```
+
+No app was created, so `fly secrets set` also failed (`Could not find App
+"buzz-in-staging"`). **The staging key was never transmitted anywhere and is
+not in git.**
+
+Per GOAL.md step 5 this was **logged and skipped, not treated as a blocker**
+for the rest of the run.
+
+**To finish the deploy, once a payment method is on the Fly org:**
+
+```
+flyctl launch --no-deploy --copy-config --name buzz-in-staging --region iad --yes
+flyctl secrets set DEEPGRAM_STAGING_API_KEY="$DEEPGRAM_STAGING_API_KEY" --app buzz-in-staging
+flyctl deploy --app buzz-in-staging --ha=false
+```
+
+`fly.toml` and `Dockerfile` are committed and ready. `fly.toml` pins
+`BUZZ_IN_ENV = "staging"`; production is unreachable without an explicit
+`BUZZ_IN_ALLOW_PROD=1`, which is deliberately not set anywhere.
+
+**Never hardcode the key** — the command above reads it from the environment,
+which is how it was handled throughout this run.

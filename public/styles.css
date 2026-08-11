@@ -437,3 +437,32 @@ body {
   white-space: nowrap;
 }
 .howto-foot { margin: var(--s1) 0 0; font-size: 13px; color: var(--dim); }
+
+
+/* ── The clock ────────────────────────────────────────────────────────── */
+
+.clock-row { display: flex; align-items: center; gap: var(--s2); }
+
+.clock-row .clock { flex: 1; }
+
+/* A game-show countdown. No units, no field name: it reads as a clock, which
+   is what a game show has, not as instrumentation, which is what the rules
+   forbid on screen. */
+.clock-count {
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--label);
+  min-width: 64px;
+  text-align: center;
+}
+.clock-count[data-danger="true"] {
+  color: var(--strike);
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .clock-count[data-danger="true"] { animation: none; }
+}

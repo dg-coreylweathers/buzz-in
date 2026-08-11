@@ -34,8 +34,12 @@
     </div>
   </header>
 
-  <!-- The clock. A bar, not a number: no instrumentation on screen. -->
-  <div class="clock" id="clock" aria-hidden="true"><span class="clock-fill" id="clockFill"></span></div>
+  <!-- The clock: a countdown with a draining bar under it. The number is a
+       game-show clock, never instrumentation — no units, no readouts. -->
+  <section class="clock-row">
+    <div class="clock-count" id="clockCount" aria-live="off">--</div>
+    <div class="clock" id="clock" aria-hidden="true"><span class="clock-fill" id="clockFill"></span></div>
+  </section>
 
   <section class="readout" aria-live="polite">
     <div class="count-frame">
@@ -70,6 +74,7 @@
       <span class="key-buzz-sub" id="buzzHint">say it, or press space</span>
     </button>
     <button type="button" id="pause" class="key key-small" disabled>PAUSE</button>
+    <button type="button" id="retry" class="key key-small" hidden>TRY AGAIN</button>
 
     <form id="answerForm" class="answer" hidden>
       <label class="answer-label" for="answer">Your answer</label>

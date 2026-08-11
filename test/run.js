@@ -16,6 +16,7 @@ import {
   BUZZ_WORD, BUZZ_PHRASES,
 } from '../src/copyRules.js';
 import { matchesBuzzPhrase } from '../src/listenSession.js';
+import { matchLiterally, INTENT, IntentClassifier } from '../src/intent.js';
 import {
   countWords, buildWordStrip, scoreBuzz, scoreSession, answerMatches, OUTCOME,
 } from '../src/scoring.js';
@@ -220,6 +221,30 @@ ok('64. every clue id is unique', new Set(CLUES.map((c) => c.id)).size === CLUES
 ok('65. every clue has at least one accepted answer', CLUES.every((c) => c.accept?.length > 0));
 ok('66. the bank contains reversal clues', CLUES.some((c) => c.kind === 'reversal'));
 ok('67. every clue is long enough to leave words unsaid', CLUES.every((c) => countWords(c.text) >= 12));
+
+// ─── Group 5b: intent recognition ──────────────────────────────────────────
+// The literal matcher is the free path and must stay correct on its own: it
+// handles the common case with no model call, and it is the only path when no
+// key is configured.
+
+eq('67a. the buzz phrase is matched literally', matchLiterally('I know it!'), INTENT.BUZZ);
+eq('67b. a natural variant is matched literally', matchLiterally('oh i know this one'), INTENT.BUZZ);
+eq('67c. a retry request is matched literally', matchLiterally("let's try again"), INTENT.RETRY);
+eq('67d. a skip request is matched literally', matchLiterally('pass'), INTENT.SKIP);
+eq('67e. empty speech is not an intent', matchLiterally(''), INTENT.NONE);
+eq('67f. a short unmatched utterance is treated as noise, not sent to a model',
+  matchLiterally('um okay'), INTENT.NONE);
+ok('67g. a longer ambiguous utterance is deferred to the classifier',
+  matchLiterally('hmm the one with the river maybe') === null);
+{
+  // No key must degrade to the free path, never throw and never break a round.
+  const offline = new IntentClassifier({ apiKey: null });
+  ok('67h. the classifier works with no key configured', offline.enabled === false);
+  const r = await offline.classify('I know it');
+  eq('67i. literal matching still works with no key', r.intent, INTENT.BUZZ);
+  const amb = await offline.classify('hmm the one with the river maybe');
+  eq('67j. an ambiguous phrase with no key falls back to none', amb.intent, INTENT.NONE);
+}
 
 // ─── Group 6: the voice roster — PRD 5.6, FLAGS F-06 ───────────────────────
 

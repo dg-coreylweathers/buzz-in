@@ -192,3 +192,49 @@ it inside the demo that argues against it would be self-refuting.
 **What would need to change:** when the split ships, live mode scores from
 `text_remaining` and the two paths converge. Until then, the honest live demo
 is "real voice, real interrupt, no fabricated number."
+
+---
+
+## D-15 · Buzz trigger is a phrase, chosen from measurement
+
+The buzz word was `BUZZ`. Measured against staging Flux STT on 2026-08-11,
+single plosive words do not survive recognition: "Buzz!" transcribed as
+"But", "Buzzer!" as an empty string. Phrases did: "I know it!" came back
+clean, as did "Answer!".
+
+**Decision: the trigger is the phrase "I know it".** Accepting a mis-hearing
+like "but" instead would false-trigger on ordinary clue words and score the
+player for words they actually heard, which is worse than a missed buzz they
+can simply repeat.
+
+`check:clues` confirms the phrase appears in none of the 30 clues, which is
+what keeps the echo-cancellation mitigation intact: if the host said it, the
+player's own microphone would buzz them in.
+
+## D-16 · Claude Haiku 4.5 classifies intent, behind a free literal matcher
+
+The game should understand "let's try again" and "got it" without printing
+every accepted phrasing on screen. A literal list cannot cover natural
+speech, so `claude-haiku-4-5` (the cheapest current model) labels the
+ambiguous remainder as buzz / retry / skip / none.
+
+**Cost discipline, in order:** literal match first (free, instant, handles the
+common case) · obvious non-speech discarded before any call · only genuinely
+ambiguous transcripts reach the model · results cached per transcript, shared
+process-wide, so a phrasing paid for once is free afterwards. Measured on a
+ten-case set: 10/10 correct, 4 model calls, 6 free.
+
+`max_tokens` is 64 and the output is schema-constrained to one enum field.
+
+**Degradation is deliberate:** with no `ANTHROPIC_API_KEY` the classifier is
+disabled, the literal matcher still works, and the game stays playable while
+understanding fewer phrasings. A classifier error is caught and treated as
+"heard nothing" — it can never break a round.
+
+## D-17 · The countdown is a clock, not a readout
+
+PRD §3 bans on-screen instrumentation. A game-show countdown is not
+instrumentation: it shows whole seconds with **no unit label and no field
+name**, which is furniture every game show has. What stays banned is what the
+rule actually targets — millisecond readouts, field names, product names.
+`check:copy` enforces that distinction and passes.

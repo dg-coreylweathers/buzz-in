@@ -19,8 +19,9 @@ import { resolveEnv, hasApiKey } from './src/config.js';
 import { buildRound } from './src/challenge.js';
 import { getInterruptShape, canScoreInterruption } from './src/interruptShape.js';
 import { SpeakSession, SAMPLE_RATE, ENCODING } from './src/speakSession.js';
-import { ListenSession, MIC_SAMPLE_RATE, matchesBuzzPhrase } from './src/listenSession.js';
-import { ALLOWED_VOICES, BUZZ_WORD, BUZZ_PHRASES } from './src/copyRules.js';
+import { ListenSession, MIC_SAMPLE_RATE } from './src/listenSession.js';
+import { IntentClassifier, INTENT } from './src/intent.js';
+import { ALLOWED_VOICES, BUZZ_WORD } from './src/copyRules.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const env = resolveEnv();
@@ -80,7 +81,12 @@ const server = createServer(async (req, res) => {
       // report carries no text split. See FLAGS.md F-15.
       canScoreLive: canScoreInterruption(getInterruptShape('staging')),
       audio: { encoding: ENCODING, sampleRate: SAMPLE_RATE },
-      mic: { sampleRate: MIC_SAMPLE_RATE, buzzWord: BUZZ_WORD },
+      mic: {
+        sampleRate: MIC_SAMPLE_RATE,
+        buzzWord: BUZZ_WORD,
+        // Whether the game understands phrasings beyond the literal one.
+        understandsIntent: intent.enabled,
+      },
       voices: ALLOWED_VOICES,
       // Whether a key is configured — never the key itself, not even a prefix.
       speechConfigured: hasApiKey(),
@@ -168,6 +174,10 @@ wss.on('connection', (client) => {
 
 const micWss = new WebSocketServer({ noServer: true });
 
+// One classifier for the process: the cache is shared, so a phrasing paid for
+// once is free for every later player.
+const intent = new IntentClassifier();
+
 micWss.on('connection', (client) => {
   let listen = null;
   let armed = false;         // only report a buzz while a clue is in play
@@ -204,12 +214,20 @@ micWss.on('connection', (client) => {
 
             // Confirmation. Audio has kept playing since onset, which is why
             // the held value is the one that counts.
-            if (matchesBuzzPhrase(t.transcript, BUZZ_PHRASES)) {
-              armed = false;
-              tell({ type: 'BuzzConfirmed', transcript: t.transcript });
-            } else if (t.transcript) {
-              tell({ type: 'Heard', transcript: t.transcript });
-            }
+            if (!t.transcript) return;
+            tell({ type: 'Heard', transcript: t.transcript });
+
+            intent.classify(t.transcript).then((result) => {
+              if (!armed && result.intent === INTENT.BUZZ) return;
+              if (result.intent === INTENT.BUZZ) {
+                armed = false;
+                tell({ type: 'BuzzConfirmed', transcript: t.transcript, source: result.source });
+              } else if (result.intent === INTENT.RETRY) {
+                tell({ type: 'RetryRequested', transcript: t.transcript });
+              } else if (result.intent === INTENT.SKIP) {
+                tell({ type: 'SkipRequested', transcript: t.transcript });
+              }
+            });
           })
           .on('error', (e) => tell({ type: 'MicError', reason: e.message }))
           .on('close', () => tell({ type: 'MicClosed' }));

@@ -32,6 +32,7 @@ const el = {
   voice: $('voice'), pause: $('pause'), clock: $('clock'), clockFill: $('clockFill'),
   heard: $('heard'), flash: $('flash'), stage: document.querySelector('.stage'),
   buzzHint: $('buzzHint'), howto: $('howto'), howtoPhrase: $('howtoPhrase'),
+  retry: $('retry'), clockCount: $('clockCount'),
 };
 
 const sound = new Sound();
@@ -239,6 +240,7 @@ function clearCues() {
 
 function startClock() {
   clueState.clockLeft = CLUE_SECONDS * 1000;
+  clueState.lastShown = null;
   el.clock.dataset.danger = 'false';
   el.clock.dataset.paused = 'false';
   el.clockFill.style.transform = 'scaleX(1)';
@@ -252,6 +254,17 @@ function startClock() {
 
     const frac = Math.max(0, clueState.clockLeft / (CLUE_SECONDS * 1000));
     el.clockFill.style.transform = `scaleX(${frac})`;
+
+    // The countdown itself. Whole numbers only, and never a unit label — a
+    // clock is game-show furniture; a readout with units would be
+    // instrumentation, which is not allowed on screen.
+    const left = Math.max(0, Math.ceil(clueState.clockLeft / 1000));
+    if (left !== clueState.lastShown) {
+      clueState.lastShown = left;
+      el.clockCount.textContent = String(left);
+      el.clockCount.dataset.danger = String(left <= 5);
+      if (left <= 5 && left > 0) sound.tick(left);
+    }
 
     if (frac < 0.25 && el.clock.dataset.danger !== 'true') {
       el.clock.dataset.danger = 'true';
@@ -292,6 +305,9 @@ function stopClueTimers() {
 function endClueUnbuzzed() {
   stopClueTimers();
   clearCues();
+  el.retry.hidden = true;
+  el.clockCount.textContent = '--';
+  el.clockCount.dataset.danger = 'false';
   mic?.disarm();
   setLamp('idle');
   el.stage.dataset.live = 'false';
@@ -390,14 +406,53 @@ function submitAnswer(event) {
     sound.wrong();
     flash('wrong');
     setStatus('not this time');
+    // A wrong answer is retryable while the clock lasts.
+    clueState.retryable = true;
+    offerRetry();
   }
   showResult(result);
   session.ledger.endTurn();
 
   // The host answers you back.
   const line = result.outcome === OUTCOME.CORRECT ? SPOKEN_COPY.correct : SPOKEN_COPY.wrong;
-  if (live) sayHost(line).then(() => setTimeout(nextClue, 500));
-  else setTimeout(nextClue, 1600);
+  const advance = () => { if (!canRetry()) nextClue(); };
+  if (live) sayHost(line).then(() => setTimeout(advance, 1200));
+  else setTimeout(advance, 2200);
+}
+
+// Another go at the same clue, as long as the clock has not run out.
+// The ledger is untouched: the offset was captured at onset and already
+// consumed, and a retry does not rewind audio the player already heard.
+function canRetry() {
+  return Boolean(clueState && clueState.retryable && clueState.clockLeft > 0 && !session.finished);
+}
+
+function offerRetry() {
+  el.retry.hidden = !canRetry();
+}
+
+function takeRetry() {
+  if (!canRetry()) return;
+
+  // Undo the scored result for this clue so the second attempt replaces it
+  // rather than stacking on top of it.
+  const dropped = session.results.pop();
+  session.index -= 1;
+  clueState.retryable = false;
+  el.retry.hidden = true;
+
+  el.count.dataset.scored = 'false';
+  el.count.textContent = String(session.total().total);
+
+  // The strip stays cut where the host was interrupted: those words really
+  // were never said, and a retry does not give them back.
+  clueState.buzzed = true;
+  el.form.hidden = false;
+  el.answer.value = '';
+  el.answer.focus();
+  setStatus('one more try');
+  setLamp('cut');
+  void dropped;
 }
 
 function showResult(result) {
@@ -512,6 +567,13 @@ async function startRound() {
       mic.onOnset = onMicOnset;
       mic.onBuzz = () => { el.heard.dataset.hot = 'true'; onBuzz({ fromMic: true }); };
       mic.onHeard = (t) => { el.heard.dataset.hot = 'false'; el.heard.textContent = t ? `"${t}"` : ''; };
+      // Understood by the classifier, so a player can say it however they like.
+      mic.onRetry = () => { if (canRetry()) takeRetry(); };
+      mic.onSkip = () => {
+        if (!clueState || clueState.buzzed || paused) return;
+        setStatus('passed');
+        endClueUnbuzzed();
+      };
       mic.onError = (r) => { console.warn('[buzz-in] mic:', r); el.heard.textContent = ''; };
       await mic.start();
       el.buzzHint.textContent = 'say "I know it", or press space';
@@ -538,6 +600,7 @@ async function startRound() {
 el.start.addEventListener('click', startRound);
 el.buzz.addEventListener('click', () => onBuzz());
 el.pause.addEventListener('click', togglePause);
+el.retry.addEventListener('click', takeRetry);
 el.voice.addEventListener('change', () => {
   chosenVoice = el.voice.value;
   localStorage.setItem('buzz-in.voice', chosenVoice);

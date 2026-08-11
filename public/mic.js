@@ -58,6 +58,8 @@ export class Mic {
     this.onOnset = () => {};
     this.onBuzz = () => {};
     this.onHeard = () => {};
+    this.onRetry = () => {};
+    this.onSkip = () => {};
     this.onError = () => {};
     this.ready = false;
     this.framesSent = 0;   // so a silent mic is diagnosable rather than mysterious
@@ -89,6 +91,8 @@ export class Mic {
       if (msg.type === 'Onset') this.onOnset();
       if (msg.type === 'BuzzConfirmed') this.onBuzz(msg.transcript);
       if (msg.type === 'Heard') this.onHeard(msg.transcript);
+      if (msg.type === 'RetryRequested') this.onRetry(msg.transcript);
+      if (msg.type === 'SkipRequested') this.onSkip(msg.transcript);
       if (msg.type === 'MicError') this.onError(msg.reason);
     });
 

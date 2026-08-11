@@ -13,7 +13,7 @@ import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 
-import { resolveEnv, hasApiKey, resolveApiKey } from './src/config.js';
+import { resolveEnv, hasApiKey } from './src/config.js';
 import { buildRound } from './src/challenge.js';
 import { getInterruptShape, canScoreInterruption } from './src/interruptShape.js';
 
@@ -86,15 +86,6 @@ const server = createServer(async (req, res) => {
 
   return serveStatic(res, url.pathname);
 });
-
-// A last-line guard: if the key were ever to appear in a response body, fail
-// loudly rather than ship it. Cheap insurance on the constraint that matters
-// most.
-const key = resolveApiKey();
-if (key) {
-  const originalEnd = server.constructor.prototype.emit;
-  void originalEnd; // guard is enforced by never placing the key in a payload
-}
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`buzz-in listening on :${PORT}`);

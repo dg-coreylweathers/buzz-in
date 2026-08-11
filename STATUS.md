@@ -45,12 +45,36 @@ it, **not** as a replacement for it.
 | # | Step | State |
 |---|------|-------|
 | 0 | Tracking docs stood up | ✅ done |
-| 1 | Test suite + both constraint checkers, against staging | ⏳ not started |
+| 1 | Test suite + both constraint checkers, against staging | ✅ **done** — 113 assertions, 3 checkers, headless three-clue run, all pass |
 | 2 | Code-review pass | ⏳ not started |
 | 3 | Sound + visual surface | ⏳ not started |
 | 4 | Content under `/content` | ⏳ not started |
 | 5 | Fly.io staging deploy | ⏳ not started |
 | 6 | Push to github.com/dg-coreylweathers/buzz-in | ⏳ not started |
+
+## Step 1 result — verified this run, 2026-08-11
+
+| Check | Result |
+|---|---|
+| Assertion suite (`npm test`) | ✅ **113 assertions passed, 0 failed** |
+| `check:copy` | ✅ PASS — 10 spoken lines + all on-screen copy clean; voices `rufus, jack, cole, haley`; `brittany`/`marcus` excluded; no instrumentation on screen |
+| `check:clues` | ✅ PASS — 30 clues (10 reversal); no vendor reference, no product terminology, no banned voice name, no plural of "interruption", no score in time units, buzz word in none of them |
+| `check:offset` (new, see D-04) | ✅ PASS — offset captured at onset and held, session-scoped and monotonic, no wall clock in the path |
+| Headless three-clue run (`scripts/smoke.js --buzz-at`) | ✅ PASS — offset strictly increasing across all three turns |
+| Staging reachability + auth | ✅ HTTP 200 from `api.staging.deepgram.com` with the staging key |
+| Production | ❌ never contacted — `src/config.js` throws without an explicit override |
+
+**On the assertion count:** 113, not 47. This is *not* the inherited suite
+growing — it is a **different suite**, written this run from the PRD spec,
+because the inherited one was absent. See the warning at the top of this file
+and FLAGS.md F-01. The two numbers are not comparable and should not be
+reported as though the 47 were confirmed.
+
+**One real bug found and fixed during step 1:** the ledger accepted a
+*non-advancing* offset (equal to the previous buzz), not just a decreasing
+one. Two buzzes at an identical offset means no audio rendered in between —
+the same class of failure as the backwards offset in PRD §5.1. The invariant
+is now strictly-increasing, and assertion 12 covers it.
 
 ## What's live
 

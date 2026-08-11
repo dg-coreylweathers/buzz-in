@@ -4,7 +4,9 @@
   "private": false,
   "description": "A trivia game where the score is the exact number of words the host never got to say.",
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node server.js",
     "test": "node test/run.js",
@@ -12,7 +14,8 @@
     "check:clues": "node scripts/check-clues.js",
     "check:offset": "node scripts/check-offset.js",
     "smoke": "node scripts/smoke.js",
-    "verify": "npm run test && npm run check:copy && npm run check:clues && npm run check:offset"
+    "verify": "npm run test && npm run check:copy && npm run check:clues && npm run check:offset && npm run check:surface",
+    "check:surface": "node scripts/check-surface.js"
   },
   "license": "MIT"
 }

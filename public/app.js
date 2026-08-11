@@ -97,10 +97,13 @@ function playClue() {
   const step = () => {
     if (clueState.buzzed) return;
 
+    // Only count audio for a word that actually played. Advancing on the
+    // final no-op step would credit the ledger with audio the player never
+    // heard — an overcount, which is the exact direction of error this whole
+    // product exists to point at.
     const advanced = lightNextWord();
-    playback.advanceWords(1);
-
     if (!advanced) return endClueUnbuzzed();
+    playback.advanceWords(1);
 
     const left = clueState.words.length - clueState.spoken;
     if (left === RUNNING_OUT_WORDS && !stopRiser) {

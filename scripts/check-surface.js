@@ -117,6 +117,44 @@ else fail('mute preference does not persist');
 if (/prefers-reduced-motion/.test(css)) ok('prefers-reduced-motion respected');
 else fail('prefers-reduced-motion not respected');
 
+// ── Browser/node safety: no unguarded `process` in browser modules ──────
+//
+// Added after a real failure: `getInterruptShape(name = process.env.X)` threw
+// ReferenceError: process is not defined on the first click, because src/ is
+// shared between the server and the browser. Walk what the browser actually
+// loads and fail on any unguarded reference.
+
+const graph = new Set();
+const stack = ['public/app.js'];
+while (stack.length) {
+  const file = stack.pop();
+  if (graph.has(file)) continue;
+  graph.add(file);
+  let src;
+  try {
+    src = read(file);
+  } catch {
+    continue;
+  }
+  for (const m of src.matchAll(/from ['"]([^'"]+)['"]/g)) {
+    let spec = m[1];
+    if (spec.startsWith('/src/')) spec = `src/${spec.slice(5)}`;
+    else if (spec.startsWith('./')) spec = (file.startsWith('public/') ? 'public/' : 'src/') + spec.slice(2);
+    else continue;
+    stack.push(spec);
+  }
+}
+
+for (const file of graph) {
+  const code = read(file).replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  // A guarded use (typeof process === 'undefined') is fine; a bare one is not.
+  const guarded = /typeof\s+process\s*===\s*['"]undefined['"]/.test(code);
+  if (/\bprocess\s*\./.test(code) && !guarded) {
+    fail(`${file} reads \`process\` unguarded, but the browser loads it — this throws ReferenceError at runtime.`);
+  }
+}
+ok(`no unguarded process access across ${graph.size} browser-loaded modules`);
+
 // ── Report ──────────────────────────────────────────────────────────────
 
 if (failures) {

@@ -142,7 +142,16 @@ function assertOffset(offsetMs) {
 
 export const AVAILABLE_SHAPES = Object.keys(SHAPES);
 
-export function getInterruptShape(name = process.env.BUZZ_IN_INTERRUPT_SHAPE) {
+// This module is loaded by BOTH node and the browser, so it must never touch
+// `process` unguarded. `process.env.X` in a default parameter throws
+// ReferenceError in the browser the moment the argument is omitted, which is
+// the common call. scripts/check-surface.js guards against this returning.
+function shapeFromEnv() {
+  if (typeof process === 'undefined') return undefined;
+  return process.env?.BUZZ_IN_INTERRUPT_SHAPE;
+}
+
+export function getInterruptShape(name = shapeFromEnv()) {
   const key = (name || 'ga').toLowerCase();
   const shape = SHAPES[key];
   if (!shape) {

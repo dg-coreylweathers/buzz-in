@@ -373,3 +373,96 @@ PRD §5.1 says a non-device measurement produces.
    `/v2/models` or the connect response advertises it.
 3. If it is **not** shipping, unit 1 and unit 3 need reframing, not editing —
    and the cluster's central claim needs re-examining before publish.
+
+---
+
+## F-16 · RESOLVED-BY-EVIDENCE · 2026-08-11 · The GA contract exists in deepgram-docs PR #1092 — and this build had the field wrong
+
+**Source:** `deepgram-docs`, PR **#1092** — *"docs(flux-tts): GA surface —
+Interrupt, Configure, speed, markup + TTS Models & Languages Overview"*,
+author **jliu-dg**, branch `docs/flux-tts-ga`, **OPEN**, updated 2026-08-11.
+
+This supersedes several assumptions in this repo and answers open flags.
+
+### What the GA contract actually is
+
+```json
+{ "type": "Interrupt", "playback_offset": {"type": "time_ms", "value": 2340} }
+```
+
+**This build was wrong in three ways** before the check (now fixed in
+`src/interruptShape.js`, covered by assertions 23/23b/23c/24b):
+
+| This build had | GA contract |
+|---|---|
+| `playback_offset_ms` | **`playback_offset`** |
+| a bare number | an **object**, `{"type":"time_ms","value":N}` |
+| assumed always required | **optional — but omitting it makes the server omit `text_spoken` and `text_remaining`** |
+
+That third one is the dangerous one: omitting the offset does not error. It
+silently returns a report with no text split — which is the entire product.
+That is exactly the failure the live probe (F-15) produced, and it now has an
+explanation: **a bare `Interrupt` is EA behavior, and it is also what GA does
+when you forget the offset.**
+
+### Flags this answers
+
+- **F-04 (`speech_id` as a client field) — ANSWERED: no.** `client-messages.mdx`
+  states plainly that the server assigns `speech_id` and *"Clients do **not**
+  specify one"*, and that on `Interrupt` *"unknown fields are rejected"*. That
+  also explains every `MESSAGE-0000` in F-15. **Do not let a reviewer add it back.**
+- **F-05 (`Warning` code casing) — ANSWERED on casing.** The spec
+  (`schemas.speak.v2.yml`) states codes are `SCREAMING_SNAKE_CASE`, with EA
+  codes `NO_ACTIVE_SPEECH` and `SYNTHESIS_RETRYING`. So the proposed lowercase
+  `playback_offset_missing` contradicts the documented convention. **The name
+  is still Product's call; the casing question is settled by the spec.**
+- **F-15 (staging has no text split) — EXPLAINED, not contradicted.** The docs
+  label barge-in *"Planned for GA"* in four places
+  (`feature-overview.mdx`, `overview.mdx`, `quickstart.mdx`, `migrating.mdx`).
+  Staging is EA, so it correctly does not implement it yet. **Docs, spec, and
+  live behavior are consistent with each other. My earlier characterization of
+  this as a docs-vs-API mismatch was wrong — there is no mismatch.**
+
+### Two things this build got RIGHT, now confirmed by the GA contract
+
+1. **Session-cumulative, not per-turn.** The GA field is *"measured from the
+   start of the **session's** audio (not the current turn)"*.
+2. **Strictly increasing.** *"Each interrupt's offset must advance past the
+   position the previous interrupt established."* This is precisely the
+   invariant tightened during step 1 (assertion 12) on reasoning alone. It is
+   now spec-backed.
+
+### The spec itself has NOT been updated — and that is the live risk
+
+- `api/specs/**` contains **zero** occurrences of `text_spoken`,
+  `text_remaining`, `playback_offset`, or `audio_played_ms`.
+- `schemas.speak.v2.yml`'s header says: *"Interrupt, Configure,
+  SpeechInterrupted … are intentionally excluded"* (EA scope).
+- The only commit ever to touch these v2 speak specs is `db15930b`,
+  **2026-07-15**, Greg Holmes — nothing since, despite the Jul 28/Jul 30
+  shape changes.
+- **PR #1092 changes documentation pages only. It touches no `api/specs/**`
+  file.**
+
+**Consequence — route to Greg (Fern pipeline owner):** `api/specs/**` is the
+SDK source of truth. If GA ships the interrupt surface in docs but not in the
+spec, **Fern generates no typed SDK support for `Interrupt`,
+`playback_offset`, or the text split in any language.** Every SDK user
+hand-rolls it, exactly as this repo does. That is the `no_delay` /
+phantom-parameter pattern again, at a larger scale.
+
+This also **validates SDK_WATCH.md's premise**: the adapter is not
+defensive over-engineering, it is currently the only option.
+
+### Overlap risk for content unit 3 — needs a call from Corey
+
+PR #1092 adds **`fern/pages/text-to-speech/flux-tts/interrupt-handling.mdx`**,
+titled **"Interruption Handling"**, with sections: The pattern · Sending
+Interrupt · The response · Interrupt does not reset the voice · Edge cases ·
+In a voice agent loop · Related resources.
+
+**Our content unit 3 is a docs guide titled "Handling interruption" covering
+substantially the same ground.** Before publishing unit 3, decide: does it
+still have a distinct job, or has PR #1092 taken it? Options: retarget unit 3
+at the game-specific angle, fold its useful parts into #1092, or drop it.
+**Not resolved here.**

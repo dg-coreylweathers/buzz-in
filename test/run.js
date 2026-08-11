@@ -119,8 +119,13 @@ throws('17. a zero sample rate is rejected', () => new OffsetLedger({ sampleRate
 
   const gaMsg = ga.buildInterrupt({ offsetMs: 1234.6, speechId: 'abc' });
   eq('22. GA client message is an Interrupt', gaMsg.type, 'Interrupt');
-  eq('23. GA rounds the offset to whole units', gaMsg.playback_offset_ms, 1235);
+  // Per deepgram-docs PR #1092 (GA contract): playback_offset, an object.
+  eq('23. GA sends playback_offset as a time_ms object', gaMsg.playback_offset.type, 'time_ms');
+  eq('23b. GA rounds the offset value to whole units', gaMsg.playback_offset.value, 1235);
+  ok('23c. GA does not use the flat playback_offset_ms field', !('playback_offset_ms' in gaMsg));
   ok('24. GA does NOT send speech_id as a client field', !('speech_id' in gaMsg));
+  // "unknown fields are rejected" — so the message must carry nothing else.
+  eq('24b. GA sends exactly two keys and no unknown fields', Object.keys(gaMsg).sort().join(), 'playback_offset,type');
   ok('25. GA is declared cumulative', ga.offsetIsCumulative === true);
 
   const eaMsg = ea.buildInterrupt({ offsetMs: 100, speechId: 'abc' });
@@ -135,6 +140,11 @@ throws('17. a zero sample rate is rejected', () => new OffsetLedger({ sampleRate
   eq('29. the report exposes what was spoken', report.textSpoken, 'one two');
   eq('30. the report exposes what was left unsaid', report.textRemaining, 'three four five');
   eq('31. speech_id survives as a server-emitted diagnostic', report.speechId, 'srv-1');
+  ok('31b. a report with both text fields is flagged as carrying the split', report.hasTextSplit);
+  ok('31c. a report without the text fields is flagged as lacking the split',
+    !ga.parseReport({ type: 'SpeechInterrupted', audio_played_ms: 900, metadata: { speech_id: 'x' } }).hasTextSplit);
+  eq('31d. speech_id is read from metadata at GA',
+    ga.parseReport({ type: 'SpeechInterrupted', metadata: { speech_id: 'dg_sp_1' } }).speechId, 'dg_sp_1');
   eq('32. a non-SpeechInterrupted message parses to null', ga.parseReport({ type: 'Other' }), null);
 
   ok('33. canScoreInterruption is true for GA', canScoreInterruption(ga));

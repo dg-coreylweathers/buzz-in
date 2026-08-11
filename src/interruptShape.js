@@ -25,23 +25,40 @@ SHAPES.ga = {
   // The offset is cumulative across the session and must never decrease.
   offsetIsCumulative: true,
 
+  // Corrected 2026-08-11 against deepgram-docs PR #1092 (branch
+  // docs/flux-tts-ga), which is the GA contract. Three things this build had
+  // wrong before that check — see FLAGS.md F-16:
+  //   - the field is `playback_offset`, NOT `playback_offset_ms`
+  //   - it is an OBJECT, {type:'time_ms', value:N}, not a bare number
+  //   - it is optional, but WITHOUT it the server omits text_spoken and
+  //     text_remaining entirely — i.e. omitting it silently disables the one
+  //     thing this product is built on
   buildInterrupt({ offsetMs }) {
     assertOffset(offsetMs);
     return {
       type: 'Interrupt',
-      playback_offset_ms: Math.round(offsetMs),
+      playback_offset: { type: 'time_ms', value: Math.round(offsetMs) },
     };
   },
 
   parseReport(message) {
     if (!message || message.type !== 'SpeechInterrupted') return null;
     return {
+      // Both are OPTIONAL and are omitted when the Interrupt carried no
+      // playback_offset. Absent is not the same as empty, so it is worth
+      // knowing which happened.
       textSpoken: typeof message.text_spoken === 'string' ? message.text_spoken : '',
       textRemaining:
         typeof message.text_remaining === 'string' ? message.text_remaining : '',
-      // Server-emitted diagnostic only. Never echoed back as a client field
-      // in this shape.
-      speechId: message.speech_id ?? null,
+      hasTextSplit:
+        typeof message.text_spoken === 'string' && typeof message.text_remaining === 'string',
+      // Echoes Interrupt.playback_offset when one was supplied; otherwise the
+      // server's own count of audio GENERATED. Session-cumulative, not
+      // turn-relative.
+      audioPlayedMs: typeof message.audio_played_ms === 'number' ? message.audio_played_ms : null,
+      // Server-emitted diagnostic, nested under metadata at GA. Never sent by
+      // the client — unknown fields on Interrupt are rejected outright.
+      speechId: message.metadata?.speech_id ?? message.speech_id ?? null,
     };
   },
 };

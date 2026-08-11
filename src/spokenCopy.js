@@ -27,6 +27,8 @@ export const SPOKEN_COPY = {
 
   runningOut: 'I am nearly at the end here.',
 
+  readyFirst: 'Here we go. Listen close.',
+
   goodbye:
     'That is the show. Thanks for playing, and try to cut me off sooner next time.',
 };

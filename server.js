@@ -130,6 +130,10 @@ wss.on('connection', (client) => {
       if (!hasApiKey()) return tell({ type: 'ProxyError', reason: 'no staging key configured' });
       // Only roster voices. A client cannot ask for a banned or arbitrary one.
       const voice = ALLOWED_VOICES.includes(msg.voice) ? msg.voice : ALLOWED_VOICES[0];
+      // The host speaks many times in a round: a welcome, each clue, a
+      // reaction. Each one is its own turn, so close the previous session
+      // rather than leaking a socket per line.
+      session?.close();
       try {
         session = new SpeakSession({ voice });
         session

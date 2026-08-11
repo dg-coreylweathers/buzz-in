@@ -31,7 +31,7 @@ const el = {
   hostVal: $('hostVal'), statusVal: $('statusVal'), challengeLink: $('challengeLink'),
   voice: $('voice'), pause: $('pause'), clock: $('clock'), clockFill: $('clockFill'),
   heard: $('heard'), flash: $('flash'), stage: document.querySelector('.stage'),
-  buzzHint: $('buzzHint'),
+  buzzHint: $('buzzHint'), howto: $('howto'), howtoPhrase: $('howtoPhrase'),
 };
 
 const sound = new Sound();
@@ -86,6 +86,7 @@ const forceSim = () => new URLSearchParams(location.search).has('sim');
 
 function renderStrip(words, spokenCount, { cut = false } = {}) {
   el.stripEmpty.hidden = true;
+  el.howto.hidden = true;
   el.strip.replaceChildren();
   words.forEach((word, i) => {
     if (cut && i === spokenCount) {
@@ -159,6 +160,21 @@ function beginClue() {
   return clueState.live ? null : null;
 }
 
+// The host says a line out loud and we wait for it to finish. Everything the
+// host says goes through the same speech path as a clue, so you hear the
+// chosen voice immediately rather than only when a clue starts.
+function sayHost(text) {
+  if (!live || !text) return Promise.resolve();
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = () => { if (!settled) { settled = true; resolve(); } };
+    live.onFinished = () => { if (clueState) clueState.finished = true; done(); };
+    live.speak(session.voice, text);
+    // Never let a missing end-of-turn stall the show.
+    setTimeout(done, 9000);
+  });
+}
+
 function playClueSimulated() {
   const step = () => {
     if (clueState.buzzed) return;
@@ -194,7 +210,17 @@ function playClueLive() {
   clueState.raf = requestAnimationFrame(follow);
 }
 
-function playClue() {
+async function playClue() {
+  // The host introduces the clue before reading it, so there is a voice in the
+  // room between clues instead of dead air.
+  if (live && session.index > 0) {
+    const lead = session.index === session.clues.length - 1
+      ? SPOKEN_COPY.finalClue
+      : SPOKEN_COPY.nextClue;
+    mic?.disarm();
+    await sayHost(lead);
+  }
+
   beginClue();
   if (!clueState) return;
   if (live) playClueLive();
@@ -274,7 +300,8 @@ function endClueUnbuzzed() {
   setStatus('you let the host finish');
   session.ledger.endTurn();
   showResult(session.resolve({ report: null, answer: null }));
-  setTimeout(nextClue, 1400);
+  if (live) sayHost(SPOKEN_COPY.noBuzz).then(() => setTimeout(nextClue, 500));
+  else setTimeout(nextClue, 1400);
 }
 
 // The player buzzed. Onset is NOW: capture and hold the offset immediately.
@@ -366,7 +393,11 @@ function submitAnswer(event) {
   }
   showResult(result);
   session.ledger.endTurn();
-  setTimeout(nextClue, 1600);
+
+  // The host answers you back.
+  const line = result.outcome === OUTCOME.CORRECT ? SPOKEN_COPY.correct : SPOKEN_COPY.wrong;
+  if (live) sayHost(line).then(() => setTimeout(nextClue, 500));
+  else setTimeout(nextClue, 1600);
 }
 
 function showResult(result) {
@@ -406,6 +437,8 @@ function finishRound() {
   setStatus(`${t.total} words never said, ${t.correct} of ${t.clues} right`);
   el.challengeLink.hidden = false;
   el.challengeLink.href = challengePath(session.seed);
+  if (live) sayHost(SPOKEN_COPY.goodbye);
+  el.howto.hidden = false;
 }
 
 // ── Playback shim ────────────────────────────────────────────────────────
@@ -489,6 +522,16 @@ async function startRound() {
     }
   }
 
+  // The host greets you immediately, so the chosen voice is the first thing
+  // that happens rather than something you wait for a clue to hear.
+  if (live) {
+    el.howto.hidden = false;
+    setStatus('your host is warming up');
+    await sayHost(SPOKEN_COPY.welcome);
+    await sayHost(SPOKEN_COPY.roundStart);
+  }
+  el.howto.hidden = true;
+
   playClue();
 }
 
@@ -533,7 +576,10 @@ fetch('/api/health')
     if (chosenVoice && (h.voices || []).includes(chosenVoice)) el.voice.value = chosenVoice;
     else chosenVoice = el.voice.value || null;
     el.hostVal.textContent = chosenVoice || '\u2014';
-    if (h.mic?.buzzWord) el.buzzHint.textContent = `say "${h.mic.buzzWord}", or press space`;
+    if (h.mic?.buzzWord) {
+      el.buzzHint.textContent = `say "${h.mic.buzzWord}", or press space`;
+      el.howtoPhrase.textContent = `\u201C${h.mic.buzzWord}\u201D`;
+    }
     setStatus(liveAvailable && !forceSim() ? 'standing by' : 'standing by, no voice');
   })
   .catch(() => { liveAvailable = false; });

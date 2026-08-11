@@ -415,3 +415,25 @@ body {
   .key-buzz:not([disabled]) { animation: none; }
   .flash { animation: none !important; }
 }
+
+
+/* ── How to play ──────────────────────────────────────────────────────── */
+
+.howto { max-width: 592px; text-align: left; color: var(--label); font-size: 14px; }
+.howto[hidden] { display: none; }
+.howto-lead {
+  margin: 0 0 var(--s1);
+  color: var(--lit);
+  font-size: 17px;
+  text-align: center;
+}
+.howto-steps { margin: 0; padding-left: var(--s1); display: grid; gap: 8px; }
+.howto-steps b { color: var(--lit); font-weight: 700; }
+.howto-say {
+  color: var(--accent);
+  border: 1px solid rgba(255,176,32,0.35);
+  border-radius: 4px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.howto-foot { margin: var(--s1) 0 0; font-size: 13px; color: var(--dim); }

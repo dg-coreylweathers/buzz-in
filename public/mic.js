@@ -19,9 +19,12 @@ class MicCapture extends AudioWorkletProcessor {
     this.acc = 0;
     this.buf = [];
   }
-  process(inputs) {
+  process(inputs, outputs) {
     const input = inputs[0][0];
     if (!input) return true;
+    // Pass silence downstream: the node stays in the graph, nothing is heard.
+    const silence = outputs[0] && outputs[0][0];
+    if (silence) silence.fill(0);
     // Linear decimation to the target rate. Good enough for speech, and it
     // keeps the work off the main thread.
     for (let i = 0; i < input.length; i++) {
@@ -57,6 +60,7 @@ export class Mic {
     this.onHeard = () => {};
     this.onError = () => {};
     this.ready = false;
+    this.framesSent = 0;   // so a silent mic is diagnosable rather than mysterious
   }
 
   async start() {
@@ -103,13 +107,24 @@ export class Mic {
 
     const source = this.ctx.createMediaStreamSource(this.stream);
     this.node = new AudioWorkletNode(this.ctx, 'mic-capture', {
-      numberOfOutputs: 0,
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [1],
       processorOptions: { targetRate: TARGET_RATE },
     });
     this.node.port.onmessage = (e) => {
+      this.framesSent += e.data.length;
       if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(e.data);
     };
+
+    // A worklet whose output goes nowhere is not guaranteed to be pulled by
+    // the audio graph, and then process() never runs and no audio is ever
+    // captured. Route it to the destination through a silent gain so the
+    // graph keeps it alive without anything being audible.
+    const silent = this.ctx.createGain();
+    silent.gain.value = 0;
     source.connect(this.node);
+    this.node.connect(silent).connect(this.ctx.destination);
     return this;
   }
 

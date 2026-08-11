@@ -1,0 +1,159 @@
+# DECISIONS — Buzz-In Quiz
+
+Every judgment call this unattended run made, and why. Dated 2026-08-11.
+
+---
+
+## D-01 · Reconstructed the build from the PRD instead of ending the run
+
+**Situation:** GOAL.md step 1 says run the existing suite "before touching
+anything else." There is no existing suite — see FLAGS.md F-01.
+
+**Rule applied:** GOAL.md "WHEN TO STOP" — *stop only that piece of work, log
+why, keep going on everything else. Never end the whole run over one blocked
+item.*
+
+**Decision:** Treat PRD §5 as a build spec and implement it, because every
+other build-order step (review, sound, deploy, push) is downstream of code
+existing at all. Ending the run would have delivered nothing.
+
+**What would need to change:** If the original build surfaces (F-01), this
+code is a **reconciliation candidate, not a replacement.** Diff the two before
+either is discarded. Do not force-push over the original.
+
+**Honesty boundary:** this run never claims to have verified the inherited 47
+assertions. It wrote its own suite and reports it as such.
+
+---
+
+## D-02 · Used the `devrel-review` skill in place of `devrel-code-review`
+
+GOAL.md step 2 names `devrel-code-review`. That skill is not installed; the
+installed `devrel-review` skill's own description covers exactly this surface
+(PRs, diffs, SDKs, starter apps, dev tooling, "is this merge-ready").
+
+Closest available match, used deliberately. Logged in FLAGS.md F-02.
+
+---
+
+## D-03 · Drafted content without `deepgram-devrel-drafting`
+
+That skill is not installed here (FLAGS.md F-02). House voice, SEO frontmatter
+shape, and image briefs were matched to the conventions the PRD itself
+describes for the existing units, rather than invented.
+
+**What would need to change:** re-run the drafts through
+`deepgram-devrel-drafting` in a session where it exists before publish, and
+treat its output as authoritative over this run's voice choices.
+
+---
+
+## D-04 · No skill was extended, because `skill-creator` is unavailable
+
+GOAL.md step 2 allows extending the review skill if it's missing a check this
+codebase's shape clearly needs. It is missing one, and I could not add it.
+
+**What I would have added, for whoever can:** an *offset-ledger check* —
+assert that a captured playback offset is (a) sampled at speech onset and not
+at keyword confirmation, (b) monotonically non-decreasing across turn
+boundaries within a session, and (c) derived from rendered audio samples
+rather than any wall clock (`Date.now`, `performance.now`) in the playback
+path. All three are this codebase's specific failure modes (PRD §5.1) and a
+generic review skill will not look for them.
+
+**Mitigation shipped instead:** those three properties are enforced by
+automated assertions in `test/run.js` and by a static guard in
+`scripts/check-offset.js`, so the check exists in CI even though it does not
+exist in the skill.
+
+---
+
+## D-05 · Interrupt-shape default is `ga`, with `ea` retained as a swappable implementation
+
+PRD §8 leaves `speech_id`-as-client-field genuinely unresolved and states the
+build "currently assumes it did not survive as a client field." That is the
+PRD's own stated current behavior, so it is treated as decided.
+
+`BUZZ_IN_INTERRUPT_SHAPE=ga` (default) omits `speech_id` from the client
+message. `BUZZ_IN_INTERRUPT_SHAPE=ea` retains it.
+
+**What would need to change:** if Product confirms `speech_id` survived as a
+client input (FLAGS.md F-04), change the default to the shape that includes
+it. One line. That is the entire point of the adapter.
+
+---
+
+## D-06 · Buzz word is `BUZZ`, and it is filtered out of the clue bank mechanically
+
+PRD §3 requires the buzz word never appear inside clue text, and states this
+is the actual echo-cancellation mitigation, not a rules nicety.
+
+`check:clues` fails the build on any clue containing it, case-insensitively,
+as a whole word or as a substring of a longer word.
+
+---
+
+## D-07 · Score is the word count of `text_remaining`, computed server-side
+
+PRD §1: "the score is the exact number of words the host never got to say."
+Taken literally — the count of whitespace-delimited tokens in `text_remaining`
+as reported by the server, never a client-side reconstruction.
+
+This is the claim the whole cluster rests on (PRD §2: competitors force a
+client-side reconstruction that overcounts). Reconstructing it client-side
+here would undercut the post.
+
+---
+
+## D-08 · Voice roster limited to the confirmed cutlist, enforced by assertion
+
+`rufus`, `jack`, `cole`, `haley`. `brittany` and `marcus` are banned and the
+ban is asserted, not just documented.
+
+The parent launch page's `meghan`/`conor`/`wes` recommendation is **not**
+followed, because PRD §8 states those names do not appear in the confirmed
+cutlist at all. The discrepancy is routed, not resolved — FLAGS.md F-06.
+
+---
+
+## D-09 · Repo is public
+
+GOAL.md step 6: public unless DECISIONS.md logs a reason otherwise. No reason
+found — it is a demo built to be forked, and PRD §7's Champion and
+agent-operator rows both depend on it being readable. **Public.**
+
+No key material is committed; the staging key is read from the environment at
+runtime and set on Fly via `fly secrets set`.
+
+---
+
+## D-10 · Sound is synthesized at runtime, muted-by-default until a player action
+
+PRD §5.5 mandates Web Audio synthesis over any sourced library. Nothing
+autoplays: the AudioContext is created only on the first player gesture, so a
+page load makes no sound at all. A mute toggle persists to `localStorage`.
+
+No cue imitates any recognizable existing game-show jingle. Melodic content is
+limited to generic intervals (perfect fifths, octaves) that no one owns.
+
+---
+
+## D-11 · Staging-only is enforced in code, not just in policy
+
+`src/config.js` resolves the API host from `BUZZ_IN_ENV`, defaults to
+staging, and **throws** if anything sets it to production without an explicit
+`BUZZ_IN_ALLOW_PROD=1`. GOAL.md's "every call targets staging, never
+production" is a hard constraint, so it is a runtime guard rather than a
+convention someone can forget.
+
+---
+
+## D-12 · The five-minute degradation risk is enforced as a word-count ceiling
+
+No wall-clock turn length is measurable headlessly, so the constraint is
+approximated statically: a spoken line is capped well under any plausible
+five-minute turn at normal speaking pace.
+
+**What would need to change:** if real playback shows a clue approaching the
+risk window, tighten the ceiling — the check is one constant. Audible
+confirmation is on the human checklist (FLAGS.md § A).

@@ -1,0 +1,296 @@
+/* Buzz-In — studio equipment running a game show.
+ *
+ * Dark, matte, instrument-grade chassis. Broadcast typography, with the word
+ * count as by far the largest thing on screen. No framework, no utility
+ * classes, and a spacing scale that is strictly multiples of 16px.
+ *
+ * From talk.deepgram.com's token language, only what is compatible with
+ * "instrument, not toy": the dark background treatment, one ambient glow, a
+ * single accent used sparingly for the live state, and generous negative
+ * space. Deliberately NOT imported: the glassy gradient-orb motif — the focal
+ * object here is the word strip and the count, not a voice orb.
+ */
+
+:root {
+  /* Spacing scale: 16px multiples only. */
+  --s1: 16px; --s2: 32px; --s3: 48px; --s4: 64px; --s6: 96px;
+
+  /* Chassis. Matte, not glossy. */
+  --ink:        #08090b;
+  --chassis:    #101317;
+  --chassis-hi: #171b21;
+  --rule:       #23282f;
+  --etch:       #2c323a;
+
+  /* Type. */
+  --lit:   #f2f4f7;
+  --dim:   #5c646f;
+  --label: #838d99;
+
+  /* One accent, used sparingly, for the live/active state only. */
+  --accent:      #ffb020;
+  --accent-soft: rgba(255, 176, 32, 0.14);
+  --strike:      #e04b3a;
+
+  --face: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--ink);
+  color: var(--lit);
+  font-family: var(--face);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s2) var(--s1);
+  gap: var(--s2);
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Ambient glow behind the chassis. One source, low and warm — this is the
+   token borrowed from talk.deepgram.com, doing the one job it does well. */
+.ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 45% at 50% 18%, rgba(255, 176, 32, 0.07), transparent 70%),
+    radial-gradient(90% 60% at 50% 110%, rgba(70, 110, 160, 0.06), transparent 70%);
+  z-index: 0;
+}
+
+/* ── The chassis ──────────────────────────────────────────────────────── */
+
+.chassis {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 928px;             /* 58 × 16 */
+  background: linear-gradient(180deg, var(--chassis-hi), var(--chassis));
+  border: 1px solid var(--rule);
+  border-radius: var(--s1);
+  padding: var(--s2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 var(--s2) var(--s6) rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.chassis-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s1);
+  padding-bottom: var(--s1);
+  border-bottom: 1px solid var(--rule);
+}
+
+.wordmark {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+
+.head-controls { display: flex; align-items: center; gap: var(--s1); }
+
+/* The live lamp. The one place the accent is allowed to be bright. */
+.lamp {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--etch);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.7);
+}
+.lamp[data-state="live"] {
+  background: var(--accent);
+  box-shadow: 0 0 var(--s1) var(--accent), inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+.lamp[data-state="cut"] { background: var(--strike); box-shadow: 0 0 var(--s1) var(--strike); }
+
+.mute {
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--label);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 8px var(--s1);
+  cursor: pointer;
+}
+.mute:hover { color: var(--lit); border-color: var(--etch); }
+.mute .mute-off { display: none; }
+.mute[aria-pressed="true"] .mute-on { display: none; }
+.mute[aria-pressed="true"] .mute-off { display: inline; }
+
+/* ── The readout — the count is the largest thing on screen ───────────── */
+
+.readout {
+  text-align: center;
+  padding: var(--s2) 0;
+}
+
+.count {
+  font-size: clamp(96px, 22vw, 208px);   /* 13 × 16 at the ceiling */
+  line-height: 0.82;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--lit);
+  text-shadow: 0 0 var(--s4) rgba(255, 176, 32, 0.10);
+}
+.count[data-scored="true"] { color: var(--accent); }
+
+.count-label {
+  margin-top: var(--s1);
+  font-size: 12px;
+  letter-spacing: 0.36em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+
+/* ── The word strip ───────────────────────────────────────────────────── */
+
+.strip-frame {
+  background: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: var(--s2);
+  min-height: 176px;             /* 11 × 16 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px var(--s1);
+  align-items: baseline;
+  font-size: 22px;
+  line-height: 1.5;
+}
+.strip:empty { display: none; }
+
+.strip-empty { color: var(--dim); font-size: 15px; margin: 0; text-align: center; }
+
+.word { color: var(--dim); transition: color 90ms linear; }
+.word.spoken { color: var(--lit); }
+.word.unreached { text-decoration: line-through; text-decoration-color: var(--strike); opacity: 0.55; }
+
+/* The hard rule where the cut landed. */
+.cut {
+  display: inline-block;
+  width: 3px;
+  align-self: stretch;
+  min-height: 28px;
+  background: var(--strike);
+  box-shadow: 0 0 var(--s1) rgba(224, 75, 58, 0.6);
+}
+
+/* ── The deck ─────────────────────────────────────────────────────────── */
+
+.deck {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  align-items: center;
+  justify-content: center;
+}
+
+.key {
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.22em;
+  color: var(--lit);
+  background: linear-gradient(180deg, #1c2128, #141820);
+  border: 1px solid var(--etch);
+  border-radius: 6px;
+  padding: var(--s1) var(--s2);
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+.key:active { transform: translateY(1px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05); }
+.key[disabled] { opacity: 0.34; cursor: default; }
+
+.key-buzz {
+  padding: var(--s1) var(--s3);
+  border-color: rgba(255, 176, 32, 0.45);
+  background: linear-gradient(180deg, #2a2113, #1a1510);
+  color: var(--accent);
+}
+.key-buzz:not([disabled]) { box-shadow: 0 0 var(--s2) var(--accent-soft), 0 2px 0 rgba(0, 0, 0, 0.5); }
+
+.key-small { padding: 12px var(--s2); font-size: 12px; }
+
+.answer { display: flex; flex-wrap: wrap; gap: var(--s1); align-items: center; justify-content: center; width: 100%; }
+.answer-label { font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--label); }
+.answer input {
+  font: inherit;
+  font-size: 18px;
+  color: var(--lit);
+  background: var(--ink);
+  border: 1px solid var(--etch);
+  border-radius: 6px;
+  padding: 12px var(--s1);
+  min-width: 288px;
+}
+.answer input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* ── The foot — labelled slots, like a patch panel ────────────────────── */
+
+.chassis-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  padding-top: var(--s1);
+  border-top: 1px solid var(--rule);
+}
+
+.slot { display: flex; flex-direction: column; gap: 4px; min-width: 96px; }
+.slot-wide { flex: 1; min-width: 176px; }
+.slot-key { font-size: 10px; letter-spacing: 0.3em; color: var(--label); }
+.slot-val { font-size: 14px; color: var(--lit); font-variant-numeric: tabular-nums; }
+
+.footnote {
+  position: relative;
+  z-index: 1;
+  color: var(--dim);
+  font-size: 12px;
+  text-align: center;
+  margin: 0;
+}
+.footnote a { color: var(--label); margin-left: var(--s1); }
+
+/* ── Motion ───────────────────────────────────────────────────────────── */
+
+@keyframes strike-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.word.just-struck { animation: strike-in 120ms ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+@media (max-width: 640px) {
+  .chassis { padding: var(--s1); gap: var(--s1); }
+  .strip-frame { padding: var(--s1); }
+  .strip { font-size: 18px; }
+  .answer input { min-width: 0; flex: 1; }
+}

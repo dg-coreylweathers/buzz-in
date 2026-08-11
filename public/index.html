@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Buzz-In</title>
+<meta name="description" content="A trivia game where your score is the number of words the host never got to say.">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%230d0f11'/><circle cx='8' cy='8' r='3.5' fill='%23ffb020'/></svg>">
+</head>
+<body>
+
+<div class="ambient" aria-hidden="true"></div>
+
+<main class="chassis">
+
+  <header class="chassis-head">
+    <h1 class="wordmark">Buzz&#8209;In</h1>
+    <div class="head-controls">
+      <span class="lamp" id="lamp" data-state="idle" aria-hidden="true"></span>
+      <button type="button" id="mute" class="mute" aria-pressed="false" aria-label="Mute sound">
+        <span class="mute-on">SOUND ON</span>
+        <span class="mute-off">SOUND OFF</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- The count is the largest thing on screen, by a wide margin. -->
+  <section class="readout" aria-live="polite">
+    <div class="count" id="count">0</div>
+    <div class="count-label">words never said</div>
+  </section>
+
+  <!-- The clue as a strip of individual words: spoken words lit, unreached
+       words dim and struck through, a hard rule where the cut landed. -->
+  <section class="strip-frame">
+    <div class="strip" id="strip" aria-live="polite" aria-label="The clue, word by word"></div>
+    <p class="strip-empty" id="stripEmpty">Press start. Cut the host off the moment you know it.</p>
+  </section>
+
+  <section class="deck">
+    <button type="button" id="start" class="key key-primary">START</button>
+    <button type="button" id="buzzKey" class="key key-buzz" disabled>BUZZ</button>
+    <form id="answerForm" class="answer" hidden>
+      <label class="answer-label" for="answer">Your answer</label>
+      <input id="answer" name="answer" autocomplete="off" spellcheck="false" placeholder="say it fast">
+      <button type="submit" class="key key-small">LOCK IT IN</button>
+    </form>
+  </section>
+
+  <footer class="chassis-foot">
+    <div class="slot"><span class="slot-key">CLUE</span><span class="slot-val" id="clueNum">—</span></div>
+    <div class="slot"><span class="slot-key">ROUND</span><span class="slot-val" id="roundVal">—</span></div>
+    <div class="slot"><span class="slot-key">HOST</span><span class="slot-val" id="hostVal">—</span></div>
+    <div class="slot slot-wide"><span class="slot-key">STATUS</span><span class="slot-val" id="statusVal">standing by</span></div>
+  </footer>
+
+</main>
+
+<p class="footnote">
+  Built as a demonstration. Your score is a count of words, nothing else.
+  <a id="challengeLink" href="#" hidden>Copy a link to this round</a>
+</p>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

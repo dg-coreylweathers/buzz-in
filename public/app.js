@@ -25,7 +25,7 @@ import { Mic } from './mic.js';
 
 const $ = (id) => document.getElementById(id);
 const el = {
-  count: $('count'), strip: $('strip'), stripEmpty: $('stripEmpty'),
+  count: $('count'), strip: $('strip'),
   start: $('start'), buzz: $('buzzKey'), form: $('answerForm'), answer: $('answer'),
   lamp: $('lamp'), mute: $('mute'), clueNum: $('clueNum'), roundVal: $('roundVal'),
   hostVal: $('hostVal'), statusVal: $('statusVal'), challengeLink: $('challengeLink'),
@@ -85,7 +85,7 @@ const forceSim = () => new URLSearchParams(location.search).has('sim');
 // ── The word strip ───────────────────────────────────────────────────────
 
 function renderStrip(words, spokenCount, { cut = false } = {}) {
-  el.stripEmpty.hidden = true;
+  // The how-to panel is the strip's empty state now; hide it once a clue is up.
   el.howto.hidden = true;
   el.strip.replaceChildren();
   words.forEach((word, i) => {

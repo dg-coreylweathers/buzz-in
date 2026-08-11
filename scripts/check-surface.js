@@ -155,6 +155,24 @@ for (const file of graph) {
 }
 ok(`no unguarded process access across ${graph.size} browser-loaded modules`);
 
+// ── Every element the app reaches for must exist in the markup ──────────
+//
+// Added after a real failure: the how-to panel replaced the #stripEmpty
+// paragraph, but app.js still did `el.stripEmpty.hidden = true`. That threw
+// inside beginClue(), which aborted before the clue was ever spoken. The
+// symptom (host reads the intro, then silence) looked like an audio bug and
+// was not one.
+
+const markupIds = new Set([...html.matchAll(/id="([^"]+)"/g)].map((m) => m[1]));
+const referenced = [...app.matchAll(/\$\('([^']+)'\)/g)].map((m) => m[1]);
+const missingIds = referenced.filter((id) => !markupIds.has(id));
+
+if (missingIds.length) {
+  fail(`app.js reaches for element id(s) absent from index.html: ${missingIds.join(', ')} — this throws at runtime.`);
+} else {
+  ok(`all ${new Set(referenced).size} element ids referenced by app.js exist in the markup`);
+}
+
 // ── Report ──────────────────────────────────────────────────────────────
 
 if (failures) {

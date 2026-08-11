@@ -249,6 +249,16 @@ const playback = {
     this.ledger.recordRenderedSamples((MS_PER_WORD / 1000) * this.sampleRate * n);
   },
 
+  // Live audio from the server-held session. Goes to the worklet, which is
+  // what advances the ledger — enqueueing alone never counts.
+  pushSamples(floats) {
+    this.device?.push(floats);
+  },
+
+  get isLive() {
+    return Boolean(this.device);
+  },
+
   captureOnset() { this.ledger.captureAtOnset(); },
 
   // Queued-but-unheard audio must never count toward the offset.

@@ -285,3 +285,91 @@ flyctl deploy --app buzz-in-staging --ha=false
 
 **Never hardcode the key** — the command above reads it from the environment,
 which is how it was handled throughout this run.
+
+---
+
+## F-15 · BLOCKER · 2026-08-11 · Staging `/v2/speak` does not report the text split the product is built on
+
+**Owner:** Product / whoever owns the `/v2/speak` contract.
+**Discovered by probing staging live on 2026-08-11**, not inferred from a doc.
+Reproduce with `node scripts/probe-interrupt-shape.mjs`.
+
+### Finding 1 — `Interrupt` accepts NO fields
+
+Every variant tried against `wss://api.staging.deepgram.com/v2/speak`:
+
+| Client message | Staging response |
+|---|---|
+| `{"type":"Interrupt"}` | ✅ **accepted** → `SpeechInterrupted` |
+| `{"type":"Interrupt","playback_offset_ms":800}` | ❌ `Error MESSAGE-0000` — could not be parsed |
+| `{"type":"Interrupt","speech_id":"dg_sp_..."}` | ❌ `Error MESSAGE-0000` |
+| `{"type":"Interrupt","speech_id":...,"playback_offset_ms":...}` | ❌ `Error MESSAGE-0000` |
+| `{"type":"Interrupt","playback_offset":800}` | ❌ `Error MESSAGE-0000` |
+| `{"type":"Interrupt","offset_ms":800}` | ❌ `Error MESSAGE-0000` |
+| `{"type":"Clear"}` | ❌ `Error MESSAGE-0000` |
+
+**The client cannot report a playback offset to staging at all today.** This
+also answers F-04 in the negative *for the client direction*, empirically:
+`speech_id` is not accepted as a client field — it is rejected outright.
+
+### Finding 2 — `SpeechInterrupted` carries no text split
+
+Full payload as returned:
+
+```json
+{
+  "type": "SpeechInterrupted",
+  "audio_played_ms": 960,
+  "metadata": {
+    "speech_id": "dg_sp_26cfaa5ec5af",
+    "audio_duration_ms": 960,
+    "input_character_count": 103,
+    "billable_character_count": 103,
+    "controls_applied": { "pronunciations_applied": 0, "breaks_applied": 0, "pronunciation_warnings": 0 }
+  }
+}
+```
+
+**There is no `text_spoken` and no `text_remaining`.**
+
+### Why this is a blocker, not a detail
+
+PRD §1 and §2 define the product as: *the score is the exact number of words
+the host never got to say*, taken from `text_remaining` on the interruption
+report, and the entire "you cannot build this on a competitor's API" claim
+rests on the server reporting that split rather than the client reconstructing
+it.
+
+**Against staging as it exists today, that is not implementable.** The
+server-side split does not come back.
+
+### Finding 3 — `audio_played_ms` is generated audio, not heard audio
+
+In the end-to-end run (`node scripts/e2e-live.mjs`), staging reported
+`audio_played_ms: 1040` while the output path had actually rendered **960ms**.
+The client never told the server a playback position (Finding 1 makes that
+impossible), so this figure cannot reflect what the listener heard — and the
+80ms gap runs in the **overcount** direction, which is precisely the error
+PRD §5.1 says a non-device measurement produces.
+
+**Do not let this field be documented or used as "what the caller heard."**
+
+### What this run did about it
+
+- Added a third adapter implementation, `staging`, recording the live-observed
+  shape exactly. `canScoreInterruption(staging)` returns **false**, so the
+  game **refuses to claim a server-authoritative score** against it. The
+  predicate from PRD §5.2 caught this without being modified.
+- Kept `ga` as the default so nothing about the documented shape changed on
+  the strength of one probe.
+- **Did not fabricate a text split**, and did not silently fall back to a
+  client-side reconstruction presented as the server's number.
+
+### Questions for Product
+
+1. Is the text split shipping on `/v2/speak` before GA+2 (Aug 19)? The build
+   post, the docs guide, and the game's scoring all depend on it.
+2. If it is behind a flag or a query parameter, which one? Nothing in
+   `/v2/models` or the connect response advertises it.
+3. If it is **not** shipping, unit 1 and unit 3 need reframing, not editing —
+   and the cluster's central claim needs re-examining before publish.

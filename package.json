@@ -17,5 +17,8 @@
     "verify": "npm run test && npm run check:copy && npm run check:clues && npm run check:offset && npm run check:surface",
     "check:surface": "node scripts/check-surface.js"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.21.3"
+  }
 }

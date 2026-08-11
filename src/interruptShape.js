@@ -76,6 +76,47 @@ SHAPES.ea = {
   },
 };
 
+// --- STAGING-OBSERVED (measured live 2026-08-11) -----------------------------
+// This is NOT a design. It is what staging /v2/speak actually accepts and
+// returns today, discovered by probing it. It is kept as its own
+// implementation precisely so the difference from the GA shape is visible and
+// testable rather than buried.
+//
+// Two findings, both material — see FLAGS.md F-15:
+//   1. Interrupt accepts NO fields. Bare {type:'Interrupt'} is accepted; adding
+//      playback_offset_ms, speech_id, playback_offset, or offset_ms all return
+//      Error MESSAGE-0000 "The message could not be parsed."
+//   2. SpeechInterrupted carries NO text_spoken and NO text_remaining. It
+//      reports audio_played_ms plus metadata.speech_id.
+//
+// Consequence: canScoreInterruption(staging) is FALSE, and the game refuses to
+// claim a server-authoritative score against this shape. That predicate was
+// written for exactly this situation and it earned its keep.
+SHAPES.staging = {
+  name: 'staging',
+  sendsSpeechIdFromClient: false,
+  offsetIsCumulative: false,
+  // The client cannot report a playback position to this shape at all.
+  acceptsPlaybackOffset: false,
+
+  buildInterrupt() {
+    // Deliberately field-free. Adding anything here is rejected by the server.
+    return { type: 'Interrupt' };
+  },
+
+  parseReport(message) {
+    if (!message || message.type !== 'SpeechInterrupted') return null;
+    return {
+      // Not reported by this shape. Empty strings, never fabricated values.
+      textSpoken: '',
+      textRemaining: '',
+      // What the server DID generate — not what the listener heard.
+      audioPlayedMs: typeof message.audio_played_ms === 'number' ? message.audio_played_ms : null,
+      speechId: message.metadata?.speech_id ?? null,
+    };
+  },
+};
+
 function assertOffset(offsetMs) {
   if (!Number.isFinite(offsetMs) || offsetMs < 0) {
     throw new Error(`playback offset must be a non-negative number — got ${offsetMs}`);

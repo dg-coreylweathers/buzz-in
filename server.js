@@ -13,9 +13,13 @@ import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 
+import { WebSocketServer } from 'ws';
+
 import { resolveEnv, hasApiKey } from './src/config.js';
 import { buildRound } from './src/challenge.js';
 import { getInterruptShape, canScoreInterruption } from './src/interruptShape.js';
+import { SpeakSession, SAMPLE_RATE, ENCODING } from './src/speakSession.js';
+import { ALLOWED_VOICES } from './src/copyRules.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const env = resolveEnv();
@@ -70,6 +74,12 @@ const server = createServer(async (req, res) => {
       environment: env.name,           // staging
       shape: shape.name,
       canScore: canScoreInterruption(shape),
+      // Live speech is available when a key is configured. Note that
+      // canScoreLive is FALSE against staging today: the SpeechInterrupted
+      // report carries no text split. See FLAGS.md F-15.
+      canScoreLive: canScoreInterruption(getInterruptShape('staging')),
+      audio: { encoding: ENCODING, sampleRate: SAMPLE_RATE },
+      voices: ALLOWED_VOICES,
       // Whether a key is configured — never the key itself, not even a prefix.
       speechConfigured: hasApiKey(),
     }), TYPES['.json']);
@@ -85,6 +95,59 @@ const server = createServer(async (req, res) => {
   }
 
   return serveStatic(res, url.pathname);
+});
+
+// ── Live speech proxy ───────────────────────────────────────────────────
+//
+// The browser opens a WebSocket to US. We open the staging session. The key
+// never crosses this boundary — the browser sends only a voice name and the
+// clue text, and receives only audio frames and control messages.
+
+const wss = new WebSocketServer({ server, path: '/speak' });
+
+wss.on('connection', (client) => {
+  let session = null;
+
+  const tell = (obj) => {
+    if (client.readyState === client.OPEN) client.send(JSON.stringify(obj));
+  };
+
+  client.on('message', async (raw) => {
+    let msg;
+    try {
+      msg = JSON.parse(raw.toString());
+    } catch {
+      return tell({ type: 'ProxyError', reason: 'unparseable message' });
+    }
+
+    if (msg.type === 'start') {
+      if (!hasApiKey()) return tell({ type: 'ProxyError', reason: 'no staging key configured' });
+      // Only roster voices. A client cannot ask for a banned or arbitrary one.
+      const voice = ALLOWED_VOICES.includes(msg.voice) ? msg.voice : ALLOWED_VOICES[0];
+      try {
+        session = new SpeakSession({ voice });
+        session
+          .on('audio', (buf) => {
+            if (client.readyState === client.OPEN) client.send(buf, { binary: true });
+          })
+          .on('control', (m) => tell(m))
+          .on('error', (e) => tell({ type: 'ProxyError', reason: e.message }))
+          .on('close', () => tell({ type: 'SessionClosed' }));
+        await session.connect();
+        session.speak(String(msg.text || ''));
+      } catch (err) {
+        tell({ type: 'ProxyError', reason: err.message });
+      }
+      return;
+    }
+
+    // A confirmed buzz. Note what is NOT forwarded: the browser's playback
+    // offset, because this shape rejects every field. See FLAGS.md F-15.
+    if (msg.type === 'interrupt') return session?.interrupt();
+    if (msg.type === 'stop') return session?.close();
+  });
+
+  client.on('close', () => session?.close());
 });
 
 server.listen(PORT, '0.0.0.0', () => {

@@ -157,3 +157,38 @@ five-minute turn at normal speaking pace.
 **What would need to change:** if real playback shows a clue approaching the
 risk window, tighten the ceiling — the check is one constant. Audible
 confirmation is on the human checklist (FLAGS.md § A).
+
+---
+
+## D-13 · Added a `staging` interrupt shape rather than changing the default
+
+Live probing (FLAGS.md F-15) showed staging accepts a field-free `Interrupt`
+and returns no text split. Two options: change the GA shape to match what the
+server does, or record the observed shape as its own implementation.
+
+**Decision: add it as a third implementation, leave `ga` the default.**
+
+One environment's behavior on one day is evidence, not a spec. The adapter
+exists precisely so an observed shape can be captured and tested without
+overwriting the documented one. `BUZZ_IN_INTERRUPT_SHAPE=staging` selects it.
+
+**What would need to change:** if Product confirms the field-free shape is the
+real contract, make it the default and retire `ga`. If the text split ships,
+`staging` gets updated from the same probe script and
+`canScoreInterruption(staging)` starts returning true on its own.
+
+## D-14 · Live mode plays real audio but does not claim a server-authoritative score
+
+`canScoreInterruption(staging)` is false, so `GameSession` refuses to start a
+round on that shape. Live mode therefore streams **real voice audio from
+staging** — the game is playable and the voices are real — while scoring
+continues to come from the path that can be computed honestly.
+
+**What this run refused to do:** reconstruct the word split client-side from
+the device offset and present it as the score. That reconstruction is the
+exact anti-pattern the whole cluster is written against (PRD §2), and shipping
+it inside the demo that argues against it would be self-refuting.
+
+**What would need to change:** when the split ships, live mode scores from
+`text_remaining` and the two paths converge. Until then, the honest live demo
+is "real voice, real interrupt, no fabricated number."

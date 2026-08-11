@@ -13,7 +13,9 @@ import { CLUES } from '../src/clues.js';
 import { SPOKEN_COPY } from '../src/spokenCopy.js';
 import {
   checkSpokenLine, checkScreenCopy, ALLOWED_VOICES, BANNED_VOICES, MAX_SPOKEN_WORDS,
+  BUZZ_WORD, BUZZ_PHRASES,
 } from '../src/copyRules.js';
+import { matchesBuzzPhrase } from '../src/listenSession.js';
 import {
   countWords, buildWordStrip, scoreBuzz, scoreSession, answerMatches, OUTCOME,
 } from '../src/scoring.js';
@@ -185,7 +187,11 @@ ok('51. a score in units of time is caught', checkSpokenLine('you scored 250 mil
 ok('52. product terminology is caught', checkSpokenLine('the endpoint returned a payload').length > 0);
 ok('53. a banned voice name is caught', checkSpokenLine('here is brittany with the clue').length > 0);
 ok('54. an over-long turn is caught', checkSpokenLine('word '.repeat(MAX_SPOKEN_WORDS + 5)).length > 0);
-ok('55. the buzz word inside clue text is caught', checkSpokenLine('just say buzz to win').length > 0);
+ok('55. the buzz phrase inside clue text is caught', checkSpokenLine('the answer is I know it apparently').length > 0);
+// Measured against staging: single plosive words do not survive recognition
+// ("Buzz!" -> "But"), so the trigger is a phrase and the rule matches a phrase.
+ok('55b. an ordinary clue containing "know" alone is NOT flagged',
+  checkSpokenLine('Nobody could know this one for certain.').length === 0);
 ok('56. a vendor reference is caught', checkSpokenLine('powered by deepgram').length > 0);
 ok('57. a clean line passes all six rules', checkSpokenLine('This river runs through ten countries.').length === 0);
 ok('58. an on-screen millisecond readout is caught', checkScreenCopy('cut at 340 ms').length > 0);
@@ -199,7 +205,17 @@ for (const [key, line] of Object.entries(SPOKEN_COPY)) {
 
 eq('61. the clue bank holds thirty clues', CLUES.length, 30);
 ok('62. every clue is clean against all six rules', CLUES.every((c) => checkSpokenLine(c.text).length === 0));
-ok('63. the buzz word appears in no clue', CLUES.every((c) => !/buzz/i.test(c.text)));
+ok('63. the buzz phrase appears in no clue',
+  CLUES.every((c) => !new RegExp(BUZZ_WORD, 'i').test(c.text)));
+// The mic trigger, which is the echo-cancellation mitigation in practice.
+ok('63b. every accepted buzz phrase is absent from every clue',
+  CLUES.every((c) => BUZZ_PHRASES.every((p) => !c.text.toLowerCase().includes(p))));
+ok('63c. the buzz phrase matcher accepts what a player would say',
+  matchesBuzzPhrase('I know it!', BUZZ_PHRASES) && matchesBuzzPhrase('oh i know this', BUZZ_PHRASES));
+ok('63d. the matcher rejects ordinary speech',
+  !matchesBuzzPhrase('um, hold on', BUZZ_PHRASES) && !matchesBuzzPhrase('', BUZZ_PHRASES));
+ok('63e. the matcher rejects a mis-hearing of a plosive word',
+  !matchesBuzzPhrase('but', BUZZ_PHRASES) && !matchesBuzzPhrase('bias', BUZZ_PHRASES));
 ok('64. every clue id is unique', new Set(CLUES.map((c) => c.id)).size === CLUES.length);
 ok('65. every clue has at least one accepted answer', CLUES.every((c) => c.accept?.length > 0));
 ok('66. the bank contains reversal clues', CLUES.some((c) => c.kind === 'reversal'));

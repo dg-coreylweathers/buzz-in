@@ -11,36 +11,52 @@
 <body>
 
 <div class="ambient" aria-hidden="true"></div>
+<div class="spotlight" aria-hidden="true"></div>
 
-<main class="chassis">
+<main class="stage">
 
-  <header class="chassis-head">
+  <!-- Marquee bulbs. Pure CSS, no assets. -->
+  <div class="marquee marquee-top" aria-hidden="true"></div>
+
+  <header class="stage-head">
     <h1 class="wordmark">Buzz&#8209;In</h1>
+
     <div class="head-controls">
+      <label class="picker">
+        <span class="picker-label">Host</span>
+        <select id="voice" aria-label="Choose the host voice"></select>
+      </label>
       <span class="lamp" id="lamp" data-state="idle" aria-hidden="true"></span>
-      <button type="button" id="mute" class="mute" aria-pressed="false" aria-label="Mute sound">
+      <button type="button" id="mute" class="chip" aria-pressed="false" aria-label="Mute sound">
         <span class="mute-on">SOUND ON</span>
         <span class="mute-off">SOUND OFF</span>
       </button>
     </div>
   </header>
 
-  <!-- The count is the largest thing on screen, by a wide margin. -->
+  <!-- The clock. A bar, not a number: no instrumentation on screen. -->
+  <div class="clock" id="clock" aria-hidden="true"><span class="clock-fill" id="clockFill"></span></div>
+
   <section class="readout" aria-live="polite">
-    <div class="count" id="count">0</div>
+    <div class="count-frame">
+      <div class="count" id="count">0</div>
+    </div>
     <div class="count-label">words never said</div>
   </section>
 
-  <!-- The clue as a strip of individual words: spoken words lit, unreached
-       words dim and struck through, a hard rule where the cut landed. -->
   <section class="strip-frame">
     <div class="strip" id="strip" aria-live="polite" aria-label="The clue, word by word"></div>
-    <p class="strip-empty" id="stripEmpty">Press start. Cut the host off the moment you know it.</p>
+    <p class="strip-empty" id="stripEmpty">Take the stage. Cut the host off the moment you know it.</p>
   </section>
 
   <section class="deck">
     <button type="button" id="start" class="key key-primary">START</button>
-    <button type="button" id="buzzKey" class="key key-buzz" disabled>BUZZ</button>
+    <button type="button" id="buzzKey" class="key key-buzz" disabled>
+      <span class="key-buzz-main">BUZZ IN</span>
+      <span class="key-buzz-sub" id="buzzHint">say it, or press space</span>
+    </button>
+    <button type="button" id="pause" class="key key-small" disabled>PAUSE</button>
+
     <form id="answerForm" class="answer" hidden>
       <label class="answer-label" for="answer">Your answer</label>
       <input id="answer" name="answer" autocomplete="off" spellcheck="false" placeholder="say it fast">
@@ -48,17 +64,24 @@
     </form>
   </section>
 
-  <footer class="chassis-foot">
-    <div class="slot"><span class="slot-key">CLUE</span><span class="slot-val" id="clueNum">—</span></div>
-    <div class="slot"><span class="slot-key">ROUND</span><span class="slot-val" id="roundVal">—</span></div>
-    <div class="slot"><span class="slot-key">HOST</span><span class="slot-val" id="hostVal">—</span></div>
+  <!-- What the room hears you saying. Empty until the mic is live. -->
+  <p class="heard" id="heard" aria-live="polite"></p>
+
+  <footer class="stage-foot">
+    <div class="slot"><span class="slot-key">CLUE</span><span class="slot-val" id="clueNum">&mdash;</span></div>
+    <div class="slot"><span class="slot-key">ROUND</span><span class="slot-val" id="roundVal">&mdash;</span></div>
+    <div class="slot"><span class="slot-key">HOST</span><span class="slot-val" id="hostVal">&mdash;</span></div>
     <div class="slot slot-wide"><span class="slot-key">STATUS</span><span class="slot-val" id="statusVal">standing by</span></div>
   </footer>
 
+  <div class="marquee marquee-bottom" aria-hidden="true"></div>
 </main>
 
+<!-- Full-bleed flash on a buzz or a correct answer. -->
+<div class="flash" id="flash" aria-hidden="true"></div>
+
 <p class="footnote">
-  Built as a demonstration. Your score is a count of words, nothing else.
+  Your score is a count of words, nothing else.
   <a id="challengeLink" href="#" hidden>Copy a link to this round</a>
 </p>
 

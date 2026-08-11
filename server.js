@@ -19,7 +19,8 @@ import { resolveEnv, hasApiKey } from './src/config.js';
 import { buildRound } from './src/challenge.js';
 import { getInterruptShape, canScoreInterruption } from './src/interruptShape.js';
 import { SpeakSession, SAMPLE_RATE, ENCODING } from './src/speakSession.js';
-import { ALLOWED_VOICES } from './src/copyRules.js';
+import { ListenSession, MIC_SAMPLE_RATE, matchesBuzzPhrase } from './src/listenSession.js';
+import { ALLOWED_VOICES, BUZZ_WORD, BUZZ_PHRASES } from './src/copyRules.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const env = resolveEnv();
@@ -79,6 +80,7 @@ const server = createServer(async (req, res) => {
       // report carries no text split. See FLAGS.md F-15.
       canScoreLive: canScoreInterruption(getInterruptShape('staging')),
       audio: { encoding: ENCODING, sampleRate: SAMPLE_RATE },
+      mic: { sampleRate: MIC_SAMPLE_RATE, buzzWord: BUZZ_WORD },
       voices: ALLOWED_VOICES,
       // Whether a key is configured — never the key itself, not even a prefix.
       speechConfigured: hasApiKey(),
@@ -103,7 +105,11 @@ const server = createServer(async (req, res) => {
 // never crosses this boundary — the browser sends only a voice name and the
 // clue text, and receives only audio frames and control messages.
 
-const wss = new WebSocketServer({ server, path: '/speak' });
+// Both sockets use noServer and share ONE upgrade handler. Attaching two
+// WebSocketServer instances to the same HTTP server with `path` does not work:
+// each installs its own 'upgrade' listener, and the first one to see a request
+// for the other's path rejects it with a 400.
+const wss = new WebSocketServer({ noServer: true });
 
 wss.on('connection', (client) => {
   let session = null;
@@ -148,6 +154,87 @@ wss.on('connection', (client) => {
   });
 
   client.on('close', () => session?.close());
+});
+
+// ── Mic proxy ───────────────────────────────────────────────────────────
+//
+// The player's microphone audio comes to US as binary frames; we hold the
+// credentials and open the listening session. Two events go back: onset, and
+// a confirmed buzz. The browser decides nothing about what counts as a buzz.
+
+const micWss = new WebSocketServer({ noServer: true });
+
+micWss.on('connection', (client) => {
+  let listen = null;
+  let armed = false;         // only report a buzz while a clue is in play
+  let onsetSent = false;
+
+  const tell = (obj) => {
+    if (client.readyState === client.OPEN) client.send(JSON.stringify(obj));
+  };
+
+  client.on('message', async (raw, isBinary) => {
+    if (isBinary) return listen?.sendAudio(raw);
+
+    let msg;
+    try {
+      msg = JSON.parse(raw.toString());
+    } catch {
+      return;
+    }
+
+    if (msg.type === 'start') {
+      if (!hasApiKey()) return tell({ type: 'MicError', reason: 'no staging key configured' });
+      try {
+        listen = new ListenSession();
+        listen
+          .on('turn', (t) => {
+            if (!armed) return;
+
+            // Speech onset. This is the moment the player stopped listening.
+            // Report it immediately; the browser captures and HOLDS the offset.
+            if (t.event === 'StartOfTurn' && !onsetSent) {
+              onsetSent = true;
+              tell({ type: 'Onset' });
+            }
+
+            // Confirmation. Audio has kept playing since onset, which is why
+            // the held value is the one that counts.
+            if (matchesBuzzPhrase(t.transcript, BUZZ_PHRASES)) {
+              armed = false;
+              tell({ type: 'BuzzConfirmed', transcript: t.transcript });
+            } else if (t.transcript) {
+              tell({ type: 'Heard', transcript: t.transcript });
+            }
+          })
+          .on('error', (e) => tell({ type: 'MicError', reason: e.message }))
+          .on('close', () => tell({ type: 'MicClosed' }));
+        await listen.connect();
+        tell({ type: 'MicReady' });
+      } catch (err) {
+        tell({ type: 'MicError', reason: err.message });
+      }
+      return;
+    }
+
+    // A clue is playing: from here, speech counts as a buzz attempt.
+    if (msg.type === 'arm') { armed = true; onsetSent = false; return; }
+    if (msg.type === 'disarm') { armed = false; return; }
+    if (msg.type === 'stop') return listen?.close();
+  });
+
+  client.on('close', () => listen?.close());
+});
+
+server.on('upgrade', (req, socket, head) => {
+  const { pathname } = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  if (pathname === '/speak') {
+    return wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+  }
+  if (pathname === '/listen') {
+    return micWss.handleUpgrade(req, socket, head, (ws) => micWss.emit('connection', ws, req));
+  }
+  socket.destroy();
 });
 
 server.listen(PORT, '0.0.0.0', () => {

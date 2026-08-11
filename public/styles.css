@@ -72,7 +72,7 @@ body {
 
 /* ── The chassis ──────────────────────────────────────────────────────── */
 
-.chassis {
+.stage {
   position: relative;
   z-index: 1;
   width: 100%;
@@ -90,7 +90,7 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-.chassis-head {
+.stage-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -123,7 +123,7 @@ body {
 }
 .lamp[data-state="cut"] { background: var(--strike); box-shadow: 0 0 var(--s1) var(--strike); }
 
-.mute {
+.chip {
   font: inherit;
   font-size: 11px;
   letter-spacing: 0.2em;
@@ -134,10 +134,10 @@ body {
   padding: 8px var(--s1);
   cursor: pointer;
 }
-.mute:hover { color: var(--lit); border-color: var(--etch); }
-.mute .mute-off { display: none; }
-.mute[aria-pressed="true"] .mute-on { display: none; }
-.mute[aria-pressed="true"] .mute-off { display: inline; }
+.chip:hover { color: var(--lit); border-color: var(--etch); }
+.chip .mute-off { display: none; }
+.chip[aria-pressed="true"] .mute-on { display: none; }
+.chip[aria-pressed="true"] .mute-off { display: inline; }
 
 /* ── The readout — the count is the largest thing on screen ───────────── */
 
@@ -256,7 +256,7 @@ body {
 
 /* ── The foot — labelled slots, like a patch panel ────────────────────── */
 
-.chassis-foot {
+.stage-foot {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s1);
@@ -289,8 +289,129 @@ body {
 }
 
 @media (max-width: 640px) {
-  .chassis { padding: var(--s1); gap: var(--s1); }
+  .stage { padding: var(--s1); gap: var(--s1); }
   .strip-frame { padding: var(--s1); }
   .strip { font-size: 18px; }
   .answer input { min-width: 0; flex: 1; }
+}
+
+
+/* ── Show elements ────────────────────────────────────────────────────────
+ * Added after the first pass read as an instrument panel and not as a game
+ * show. The chassis stays: what is added is stage lighting, marquee bulbs,
+ * a framed score, and reactions with some snap to them. Still no framework,
+ * still no assets, still a 16px scale, still no instrumentation on screen.
+ */
+
+/* A hard spotlight from above, so the stage sits in a pool of light. */
+.spotlight {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(56% 42% at 50% -8%, rgba(255, 214, 140, 0.16), transparent 62%),
+    conic-gradient(from 180deg at 50% -14%, transparent 42%, rgba(255, 200, 110, 0.07) 50%, transparent 58%);
+}
+
+/* Marquee bulbs, drawn with a repeating gradient. */
+.marquee {
+  position: absolute;
+  left: var(--s2);
+  right: var(--s2);
+  height: 10px;
+  background-image: radial-gradient(circle, var(--accent) 0 3px, transparent 3px);
+  background-size: 32px 10px;
+  background-repeat: repeat-x;
+  opacity: 0.55;
+  filter: drop-shadow(0 0 6px rgba(255, 176, 32, 0.55));
+}
+.marquee-top { top: 8px; }
+.marquee-bottom { bottom: 8px; }
+.stage[data-live="true"] .marquee { animation: chase 900ms steps(2) infinite; }
+@keyframes chase { from { background-position: 0 0; } to { background-position: 32px 0; } }
+
+.stage { position: relative; padding-top: var(--s3); padding-bottom: var(--s3); }
+
+/* The host picker. */
+.picker { display: flex; align-items: center; gap: 8px; }
+.picker-label { font-size: 10px; letter-spacing: 0.3em; color: var(--label); }
+.picker select {
+  font: inherit; font-size: 12px; letter-spacing: 0.12em;
+  color: var(--lit); background: var(--ink);
+  border: 1px solid var(--rule); border-radius: 4px;
+  padding: 7px var(--s1); text-transform: uppercase; cursor: pointer;
+}
+.picker select:focus { outline: none; border-color: var(--accent); }
+
+/* The clock. A draining bar, never a number. */
+.clock {
+  height: 6px; border-radius: 3px;
+  background: var(--ink);
+  border: 1px solid var(--rule);
+  overflow: hidden;
+}
+.clock-fill {
+  display: block; height: 100%; width: 100%;
+  background: linear-gradient(90deg, var(--accent), #ffd98a);
+  transform-origin: left center;
+  transition: transform 100ms linear;
+}
+.clock[data-danger="true"] .clock-fill { background: linear-gradient(90deg, var(--strike), #ff8a76); }
+.clock[data-paused="true"] .clock-fill { opacity: 0.35; }
+
+/* The score, framed like a scoreboard rather than floating in space. */
+.count-frame {
+  display: inline-block;
+  padding: var(--s1) var(--s3);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.03), transparent),
+    var(--ink);
+  box-shadow: inset 0 2px var(--s2) rgba(0,0,0,0.7), 0 0 var(--s3) rgba(255,176,32,0.06);
+}
+.count { transition: transform 140ms cubic-bezier(.2,1.6,.4,1); }
+.count[data-slam="true"] { transform: scale(1.14); }
+
+/* The buzz key: the biggest, reddest thing on the deck. */
+.key-buzz {
+  display: flex; flex-direction: column; gap: 4px; align-items: center;
+  padding: var(--s1) var(--s4);
+  border-color: rgba(224, 75, 58, 0.5);
+  background: linear-gradient(180deg, #3a1a16, #241110);
+  color: #ff9c8c;
+}
+.key-buzz:not([disabled]) {
+  box-shadow: 0 0 var(--s3) rgba(224,75,58,0.28), 0 3px 0 rgba(0,0,0,0.6);
+  animation: throb 1.4s ease-in-out infinite;
+}
+@keyframes throb { 0%,100% { box-shadow: 0 0 var(--s2) rgba(224,75,58,0.22), 0 3px 0 rgba(0,0,0,0.6); } 50% { box-shadow: 0 0 var(--s4) rgba(224,75,58,0.42), 0 3px 0 rgba(0,0,0,0.6); } }
+.key-buzz-main { font-size: 18px; letter-spacing: 0.24em; }
+.key-buzz-sub { font-size: 10px; letter-spacing: 0.14em; color: var(--label); text-transform: none; }
+
+/* What the mic is picking up. */
+.heard {
+  min-height: 20px; margin: 0; text-align: center;
+  font-size: 13px; color: var(--label); font-style: italic;
+}
+.heard[data-hot="true"] { color: var(--accent); font-style: normal; }
+
+/* Full-bleed reaction flash. */
+.flash {
+  position: fixed; inset: 0; pointer-events: none; z-index: 5;
+  opacity: 0; background: var(--accent);
+}
+.flash[data-fire="buzz"]    { animation: flash-out 260ms ease-out; background: var(--strike); }
+.flash[data-fire="correct"] { animation: flash-out 320ms ease-out; background: var(--accent); }
+.flash[data-fire="wrong"]   { animation: flash-out 220ms ease-out; background: #6b1b12; }
+@keyframes flash-out { from { opacity: 0.30; } to { opacity: 0; } }
+
+/* The strike lands with a snap rather than a fade. */
+.word.spoken { text-shadow: 0 0 var(--s2) rgba(255,176,32,0.22); }
+
+@media (prefers-reduced-motion: reduce) {
+  .stage[data-live="true"] .marquee { animation: none; }
+  .key-buzz:not([disabled]) { animation: none; }
+  .flash { animation: none !important; }
 }

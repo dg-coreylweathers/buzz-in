@@ -8,7 +8,7 @@
 // Nothing autoplays: the AudioContext is not created until the player's first
 // gesture, so a page load makes no sound at all.
 
-const CUES = ['buzzer', 'correct', 'wrong', 'tension', 'riser', 'tick'];
+const CUES = ['buzzer', 'correct', 'wrong', 'tension', 'riser', 'tick', 'applause', 'drumroll'];
 
 export class Sound {
   constructor() {
@@ -206,6 +206,70 @@ export class Sound {
   tick(index = 0) {
     if (!this.ready) return;
     this._tone({ type: 'square', freq: 1500 + (index % 5) * 40, decay: 0.035, peak: 0.075 });
+  }
+
+  // Crowd applause. Filtered noise with a fast swell, so a correct answer
+  // lands in a room rather than in silence. Synthesized like everything else.
+  applause(seconds = 1.4) {
+    if (!this.ready) return;
+    const frames = Math.floor(this.ctx.sampleRate * seconds);
+    const buf = this.ctx.createBuffer(1, frames, this.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    // Sparse impulses smeared together read as many hands, not as static.
+    for (let i = 0; i < frames; i++) {
+      const clap = Math.random() < 0.06 ? (Math.random() * 2 - 1) : 0;
+      data[i] = clap + (Math.random() * 2 - 1) * 0.22;
+    }
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const band = this.ctx.createBiquadFilter();
+    band.type = 'bandpass';
+    band.frequency.value = 1900;
+    band.Q.value = 0.7;
+    const gain = this.ctx.createGain();
+    const t = this.ctx.currentTime;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.20, t + 0.09);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
+    src.connect(band).connect(gain).connect(this.bus);
+    src.start(t);
+    src.stop(t + seconds + 0.05);
+    this._track(src, gain);
+  }
+
+  // Drumroll under the last seconds of a clue.
+  drumroll(seconds = 2) {
+    if (!this.ready) return () => {};
+    const frames = Math.floor(this.ctx.sampleRate * seconds);
+    const buf = this.ctx.createBuffer(1, frames, this.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    // Amplitude-modulated noise at ~28Hz reads as a roll on a snare head.
+    for (let i = 0; i < frames; i++) {
+      const mod = 0.5 + 0.5 * Math.sin((i / this.ctx.sampleRate) * Math.PI * 2 * 28);
+      data[i] = (Math.random() * 2 - 1) * mod;
+    }
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const band = this.ctx.createBiquadFilter();
+    band.type = 'bandpass';
+    band.frequency.value = 260;
+    band.Q.value = 1.1;
+    const gain = this.ctx.createGain();
+    const t = this.ctx.currentTime;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.10, t + seconds * 0.7);
+    src.connect(band).connect(gain).connect(this.bus);
+    src.start(t);
+    src.stop(t + seconds);
+    const stop = () => {
+      const now = this.ctx.currentTime;
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setTargetAtTime(0.0001, now, 0.05);
+      try { src.stop(now + 0.2); } catch { /* stopped */ }
+      this._live.delete(stop);
+    };
+    this._live.add(stop);
+    return stop;
   }
 }
 

@@ -6,7 +6,20 @@
 // Shared by scripts/check-copy.js, scripts/check-clues.js, and the assertion
 // suite so there is exactly one definition of each rule.
 
-export const BUZZ_WORD = 'BUZZ';
+// The phrase a player says to buzz in.
+//
+// Measured against staging Flux STT on 2026-08-11: single plosive words do not
+// survive recognition. "Buzz!" came back as "But", "Buzzer!" as an empty
+// transcript. Short phrases do: "I know it!" transcribed cleanly.
+//
+// Accepting a mis-hearing like "but" instead would false-trigger on ordinary
+// clue words, so the trigger is the phrase.
+export const BUZZ_WORD = 'I know it';
+
+// What counts as the player saying it. Kept deliberately tight: every variant
+// here must be something a host would never say mid-clue, because a false
+// trigger scores the player for words they did hear.
+export const BUZZ_PHRASES = ['i know it', 'i know this', 'i know'];
 
 // Voice roster: the confirmed cutlist only. brittany and marcus are banned.
 // The parent launch page's meghan/conor/wes recommendation is NOT followed —

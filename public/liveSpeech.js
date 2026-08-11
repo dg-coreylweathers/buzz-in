@@ -42,7 +42,16 @@ export class LiveSpeech {
         this.onStarted(msg);
       }
       if (msg.type === 'SpeechInterrupted') this.onReport(msg);
-      if (msg.type === 'SpeechMetadata' || msg.type === 'Flushed') this.onFinished(msg);
+
+      // END OF TURN IS SpeechMetadata, NOT Flushed.
+      //
+      // `Flushed` only acknowledges the Flush command and arrives BEFORE any
+      // audio has streamed. Treating it as end-of-turn made every host line
+      // resolve at zero bytes, so the next line closed the previous session
+      // mid-stream and the clue never got read out.
+      // Measured against staging: Flushed at 0 bytes, SpeechMetadata after
+      // the full audio.
+      if (msg.type === 'SpeechMetadata') this.onFinished(msg);
       if (msg.type === 'ProxyError' || msg.type === 'Error') this.onError(msg);
     });
 

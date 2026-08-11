@@ -137,6 +137,7 @@ without it is a guess.
 
 | Mistake | What you see | Fix |
 |---|---|---|
+| Treating `Flushed` as end of turn | The next turn cancels this one mid-sentence, so the caller hears a fragment | `Flushed` only acknowledges the `Flush`, and arrives before any audio streams. Wait for `SpeechMetadata` |
 | Reading the offset at confirmation | Every report is long by about a word | Capture at onset, hold it |
 | Measuring with a wall clock | Overcounts, worse on poor connections | Count rendered samples |
 | Resetting the offset per turn | Later turns look interrupted instantly | One counter per session |

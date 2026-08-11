@@ -2,7 +2,7 @@
 title: "Handling interruption"
 slug: handling-interruption
 type: docs-guide
-status: ready-for-review — FULL SPEC PASS REQUIRED BEFORE PUBLISH
+status: ready-for-review, FULL SPEC PASS REQUIRED BEFORE PUBLISH
 word_target: 750
 seo_title: "Handling interruption | Guide"
 seo_description: "Report an interruption accurately: capture the playback offset at speech onset, keep one cumulative offset per session, and use the returned split to decide the next turn."
@@ -23,7 +23,7 @@ guide covers reporting an interruption accurately and using what comes back.
 
 1. Capture the playback offset **at speech onset**, and hold it.
 2. Only send the interruption if your transcript confirms a genuine
-   interruption rather than a cough or background noise — and send the **held**
+   interruption rather than a cough or background noise, and send the **held**
    offset, not a fresh reading.
 3. Read the returned split to decide your next turn.
 
@@ -36,13 +36,13 @@ whether it is correct.
 **Measure at the audio device, not with a clock.** Count the samples your
 output has actually rendered. Audio you have enqueued but not yet played was
 never heard, and a wall clock keeps counting through silent underruns. Both
-errors run the same way — they report that the caller heard more than they
-did — and both get worse as the connection gets worse.
+errors run the same way, they report that the caller heard more than they
+did, and both get worse as the connection gets worse.
 
 **Capture at onset, not at confirmation.** There is a real gap between the
 caller starting to speak and your transcript being confident enough to call it
 an interruption. Audio keeps playing across that gap. If you read the offset
-after confirmation, every report is long by roughly the length of that gap —
+after confirmation, every report is long by roughly the length of that gap 
 about one word at normal speaking pace.
 
 The pattern that gets both right:
@@ -54,17 +54,27 @@ const heldOffsetMs = playback.renderedPositionMs();
 // ... transcript catches up ...
 
 if (confirmedInterruption) {
-  send({ type: 'Interrupt', playback_offset_ms: Math.round(heldOffsetMs) });
+  send({
+    type: 'Interrupt'
+    playback_offset: { type: 'time_ms', value: Math.round(heldOffsetMs) }
+  });
 } else {
   // Not a real interruption. Discard the held value; nothing else changes.
 }
 ```
 
+`playback_offset` is optional, and leaving it out is the quiet failure case:
+the request succeeds and `SpeechInterrupted` comes back without `text_spoken`
+or `text_remaining`. If you are reading the split, send the offset.
+
+`Interrupt` rejects unknown fields. The server assigns `speech_id` and returns
+it for debuggability, so do not send one on the client message.
+
 ## Keep one cumulative offset per session
 
 The offset is cumulative across the session and must never decrease.
 
-A per-turn timer will reset at a turn boundary while the session has moved on,
+A per-turn timer will reset at a turn boundary while the session has moved on
 which produces an offset that goes backwards. That report is rejected, and the
 symptom is confusing: turns after the first appear to be interrupted
 immediately. Keep a single counter for the connection and never reset it at a
@@ -75,7 +85,7 @@ point it happens rather than at the point it becomes strange behavior:
 
 ```js
 if (offsetMs <= lastReportedOffsetMs) {
-  throw new Error('Playback offset did not advance — check for a per-turn timer.');
+  throw new Error('Playback offset did not advance, check for a per-turn timer.');
 }
 ```
 
@@ -90,13 +100,13 @@ The interruption report tells you what was spoken and what was not:
 
 Use `text_remaining` to decide the next turn:
 
-- **Empty or nearly empty** — the caller heard essentially all of it. Move on;
+- **Empty or nearly empty**, the caller heard essentially all of it. Move on;
   repeating anything here is what makes an agent feel like it isn't listening.
-- **Substantial** — the caller missed real content. Decide whether it still
+- **Substantial**, the caller missed real content. Decide whether it still
   matters. Often it doesn't, because they interrupted precisely because they
   already had what they needed.
-- **Carries something they must hear** — a confirmation, an amount, a warning
-  — reintroduce that content in your next turn rather than replaying the
+- **Carries something they must hear**, a confirmation, an amount, a warning
+, reintroduce that content in your next turn rather than replaying the
   original sentence.
 
 The value of getting this from the report rather than reconstructing it is
@@ -107,13 +117,17 @@ connection.
 ## If the offset is missing
 
 If you send an interruption without a usable playback offset, the service
-cannot produce an accurate split and will return a warning rather than
-guessing.
+cannot produce the split. `SpeechInterrupted` still arrives, carrying
+`audio_played_ms` from the server's own count of audio generated so far, and
+both text fields are omitted.
 
-<!-- [verify] Warning code name and casing. `playback_offset_missing` was
-     proposed, lowercase, where every other code in the spec is
-     SCREAMING_CASE. UNCONFIRMED — do not publish a code name until Product
-     confirms. FLAGS.md F-05. -->
+Warning codes on this surface use `SCREAMING_SNAKE_CASE`. Early Access codes
+are `NO_ACTIVE_SPEECH` and `SYNTHESIS_RETRYING`.
+
+<!-- [verify] Warning code NAME for a missing offset. The casing question is
+     settled: schemas.speak.v2.yml states codes are SCREAMING_SNAKE_CASE, so
+     the proposed lowercase `playback_offset_missing` contradicts the spec's
+     own convention. The name itself is still Product's call. FLAGS.md F-05. -->
 
 Treat that warning as a bug in your integration, not as a condition to handle
 at runtime: it means the offset was never captured, and any turn decision made
@@ -130,7 +144,7 @@ without it is a guess.
 
 ---
 
-## Open items — resolve before publish
+## Open items, resolve before publish
 
 <!-- [verify] Full spec pass. Every field and message name here comes from the
      Jul 30 thread. The /v2/speak spec doc is stale (last edited Jul 28, still
@@ -141,7 +155,7 @@ without it is a guess.
 <!-- [verify] Does speech_id survive as a CLIENT field on Interrupt? The Jul 30
      thread restores it as a server-emitted diagnostic but never confirms or
      denies it as a client input. This guide assumes it did NOT survive as a
-     client field. Correct if wrong — and do not let review add it back
+     client field. Correct if wrong, and do not let review add it back
      without checking first. FLAGS.md F-04. -->
 
-<!-- [verify] Warning code name/casing — see inline above. FLAGS.md F-05. -->
+<!-- [verify] Warning code name/casing, see inline above. FLAGS.md F-05. -->

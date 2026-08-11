@@ -141,9 +141,9 @@ wss.on('connection', (client) => {
       return;
     }
 
-    // A confirmed buzz. Note what is NOT forwarded: the browser's playback
-    // offset, because this shape rejects every field. See FLAGS.md F-15.
-    if (msg.type === 'interrupt') return session?.interrupt();
+    // A confirmed buzz. The browser's held onset offset is passed through;
+    // the adapter decides whether the active shape can carry it.
+    if (msg.type === 'interrupt') return session?.interrupt(msg.offsetMs);
     if (msg.type === 'stop') return session?.close();
   });
 

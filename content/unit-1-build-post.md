@@ -12,7 +12,7 @@ image_brief: >
   Dark, matte instrument panel photographed straight on, shallow depth of
   field. A single row of words on a display, the left half lit and the right
   half dimmed with a thin red rule between them. No faces, no logos, no
-  screenshots of any product UI. Warm amber key light from the upper left,
+  screenshots of any product UI. Warm amber key light from the upper left
   everything else in shadow.
 ---
 
@@ -22,7 +22,7 @@ I built a trivia game where your score is the number of words the host never
 got to say.
 
 Buzz in on the first word of a forty-word clue and get it right, that's
-thirty-nine points. Let the host finish, that's nothing — there were no words
+thirty-nine points. Let the host finish, that's nothing, there were no words
 left to take. The whole game is one number, and that number comes from a
 single field on a single message.
 
@@ -34,7 +34,7 @@ wanted a version of the argument you could play instead of read.
 Here is the thing that goes wrong when someone talks over a voice agent.
 
 The agent is halfway through a sentence. The caller cuts in. Now the agent has
-to decide what happens next — and that decision depends entirely on a question
+to decide what happens next, and that decision depends entirely on a question
 that sounds trivial and isn't: **how much of that sentence did the caller
 actually hear?**
 
@@ -69,7 +69,7 @@ audio, you are counting words that were still sitting in a buffer when the
 caller started talking. They never reached anyone's ears.
 
 **Underruns are silent, and silence isn't speech.** When the audio pipeline
-starves — a slow link, a busy device, a dropped packet — the output goes
+starves, a slow link, a busy device, a dropped packet, the output goes
 quiet. A wall clock keeps running through that silence. It has no idea the
 words stopped. So your count includes time when nothing was spoken at all.
 
@@ -77,13 +77,13 @@ words stopped. So your count includes time when nothing was spoken at all.
 moment someone starts speaking and the moment your transcript is confident
 enough to call it a genuine interruption rather than a cough, a background
 voice, or the caller saying "mm-hm." In my build that gap measures around
-360ms — roughly one word at normal speaking pace. If you read your playback
+360ms, roughly one word at normal speaking pace. If you read your playback
 position *after* that confirmation instead of at the onset, every single
 measurement is one word too long.
 
 Each of these pushes the same way. You tell the caller they heard more than
 they did. And because the errors are all in one direction, they don't cancel
-out — they compound.
+out, they compound.
 
 ## What the server already knows
 
@@ -91,17 +91,52 @@ The server generating the speech knows what it was asked to say and how far it
 got. When you tell it to stop, it can report both halves directly: the text it
 spoke, and the text it didn't.
 
-That's it. That's the whole idea. `text_spoken` and `text_remaining`, on the
-interruption report, from the side of the connection that actually knows.
+That's the whole idea. `text_spoken` and `text_remaining`, on the interruption
+report, from the side of the connection that actually knows.
+
+**Timing note, because it changes what you can build today.** On `/v2/speak`
+interruption feedback is documented as planned for GA. In Early Access the
+`Interrupt` message is accepted and `SpeechInterrupted` comes back, but it
+carries `audio_played_ms` and a `metadata` block rather than the text split. I
+verified that against staging while writing this: the split is not there yet.
+
+That does not change the pattern below, and it is worth being precise about
+why. Everything that makes the measurement honest happens on your side, at
+onset, before any message goes out. Get that right now and the split becomes a
+field you read instead of a number you rebuild.
 
 You don't reconstruct anything. You don't estimate a speaking rate. You don't
 maintain a model of where the audio pipeline thinks it is. You send one
 message saying "the caller cut in, and here is how far into the audio they
 were," and you get back an exact split.
 
+The GA client message looks like this:
+
+```json
+{
+  "type": "Interrupt"
+  "playback_offset": { "type": "time_ms", "value": 2340 }
+}
+```
+
+Three things about that field are easy to get wrong, and I got two of them
+wrong before checking the contract:
+
+- It is `playback_offset`, an object with `type` and `value`. It is not a bare
+  millisecond number.
+- It is measured from the start of the **session's** audio, not the current
+  turn. More on why that matters below.
+- It is optional, and omitting it does not raise an error. It makes the server
+  omit `text_spoken` and `text_remaining` entirely. The one field you care
+  about disappears quietly.
+
+`Interrupt` also rejects unknown fields outright, so a stray `speech_id` on the
+client message fails the whole thing. The server assigns `speech_id` and
+returns it for debuggability. Clients do not send one.
+
 The reason I turned this into a game is that it makes the claim testable
-rather than rhetorical. In the game the number is not a diagnostic — it's the
-score. It's the largest thing on the screen. If it were wrong by a word,
+rather than rhetorical. In the game the number is not a diagnostic, it's the
+score. It's the largest thing on the screen. If it were wrong by a word
 you'd hear it, because you were there when the host stopped talking and you
 can see the strike land in the wrong place. A demo where inaccuracy is
 invisible proves nothing. This one puts the measurement where it can be
@@ -115,13 +150,13 @@ cosmetic and turned out to be load-bearing.
 
 ### Iteration one: score the risk, not the API shape
 
-My first scoring rule was "points for how early you buzzed" — a raw timing
+My first scoring rule was "points for how early you buzzed", a raw timing
 measure. It worked, and it was boring, because it rewarded mashing the button
 on the first syllable of every clue.
 
 The rule that made it a game was scoring what the host *didn't get to say*.
 That sounds like the same thing. It isn't. Word count is a property of the
-sentence, not of the clock — a long clue is worth more than a short one, so
+sentence, not of the clock, a long clue is worth more than a short one, so
 buzzing early on a clue you don't understand is a real gamble rather than a
 free win. The score stopped being a stopwatch reading and became a description
 of what happened.
@@ -136,7 +171,7 @@ Second version, I got clever. Weighted the score by clue difficulty, by
 position, by a scaling factor I no longer remember the reasoning for.
 
 Nobody could tell whether it was working. When you can't predict the number
-before it appears, you can't tell a correct implementation from a broken one —
+before it appears, you can't tell a correct implementation from a broken one 
 and neither can your players. I threw it out and made the score a plain count
 of words. Now anyone can verify it by looking at the strip on screen and
 counting the struck-through words themselves.
@@ -167,7 +202,7 @@ Two smaller things fell out of that same rewrite:
 **The offset is one counter for the whole session, not a timer per turn.** I
 had a per-turn timer, and it produced a spectacular bug: every clue after the
 first buzzed instantly and scored a perfect run. It looked like a generous
-game. It was a broken harness — the per-turn timer reset at the turn boundary
+game. It was a broken harness, the per-turn timer reset at the turn boundary
 while the session counter had moved on, so the offset went backwards and got
 rejected. The tell was that my test runs were *too good*, which is the kind of
 failure that survives a long time because nobody files a bug about winning.
@@ -183,14 +218,14 @@ one that quietly lies harder the worse the network gets.
 One thing worth stealing regardless of what you're building: I kept the
 message shape out of the game logic.
 
-The interruption message format changed during development — a field moved,
+The interruption message format changed during development, a field moved
 and the offset went from resettable to cumulative. Rather than rewriting the
-scoring code, the whole shape sits behind two methods: build the message,
+scoring code, the whole shape sits behind two methods: build the message
 parse the report. Two implementations, selected by an environment variable.
 
 That took twenty minutes and has paid for itself twice. When the shape changed
-again, the change was one file. And there's a predicate — `canScoreInterruption`
-— that asks whether a given message shape can actually report what went unsaid.
+again, the change was one file. And there's a predicate, `canScoreInterruption`
+,  that asks whether a given message shape can actually report what went unsaid.
 It's a testable claim rather than an assertion in a README, which means the
 build fails if the answer ever becomes no.
 
@@ -200,30 +235,38 @@ it when the dependency updates.
 
 ## Play it, then read it
 
-The game is a few hundred lines, runs with no key at all in simulator mode,
+The game is a few hundred lines, runs with no key at all in simulator mode
 and the entire scoring path is exercised by the test suite rather than by me
 saying it works.
 
 ```
 git clone https://github.com/dg-coreylweathers/buzz-in
 cd buzz-in
+npm install
+export DEEPGRAM_STAGING_API_KEY=your_key_here
 npm start
 ```
 
+Open `http://localhost:8080`. With a key set, the host is a real Flux TTS
+voice streamed through the app's own server, which is the only place the key
+lives. Without a key it runs in simulator mode with no audio and the scoring
+path is identical. The key never reaches the browser, because client code is
+readable by anyone who opens devtools.
+
 Buzz in early. Watch where the rule lands in the strip. That position is not
-an estimate — it's the server telling you exactly where it stopped, and the
+an estimate, it's the server telling you exactly where it stopped, and the
 count next to it is the part it never reached.
 
-If you're building barge-in handling into something real: capture at onset,
+If you're building barge-in handling into something real: capture at onset
 keep one counter per session, measure at the device, and get your word split
 from the side of the connection that actually knows. The rest is a game.
 
 ---
 
-<!-- [verify] Pipecat issue link/number — the open issue describing this exact
+<!-- [verify] Pipecat issue link/number, the open issue describing this exact
      bug class. Needs the real URL before publish. FLAGS.md F-11. -->
 <!-- [verify] Current signup offer terms. FLAGS.md F-11. -->
-<!-- [verify] Whether speech_id survived as a client field — do not let review
+<!-- [verify] Whether speech_id survived as a client field, do not let review
      add it back to the client message without checking. FLAGS.md F-04. -->
 <!-- RESOLVED this run: repo path is github.com/dg-coreylweathers/buzz-in and
      the git clone line above matches it. -->

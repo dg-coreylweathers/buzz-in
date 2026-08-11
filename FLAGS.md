@@ -466,3 +466,50 @@ substantially the same ground.** Before publishing unit 3, decide: does it
 still have a distinct job, or has PR #1092 taken it? Options: retarget unit 3
 at the game-specific angle, fold its useful parts into #1092, or drop it.
 **Not resolved here.**
+
+---
+
+## F-17 · INFO · 2026-08-11 · Live audio is wired; content updated to the verified GA contract
+
+**What changed:** the browser now streams real Flux TTS audio from staging
+through the app's own server. The key stays server-side; the browser sends a
+voice name and clue text and receives audio frames plus control messages.
+
+**How scoring behaves today, stated precisely:**
+
+- The offset is still measured at the audio device. Live audio feeds the
+  output worklet, and the worklet is what advances the ledger. That property
+  is identical in live and simulator mode.
+- On buzz, the held onset offset is sent to the server, which passes it to the
+  adapter. The Early Access shape emits a field-free `Interrupt`; the GA shape
+  emits `playback_offset`. Nothing in the app changes when GA lands.
+- The app **prefers the server's text split whenever it is present**, and
+  falls back to the local word strip when it is not. Early Access does not
+  return the split, so live rounds currently score from the local strip and
+  log a console notice saying exactly that.
+
+**This is the one honesty caveat in the live demo.** A live score is an
+estimate from the browser's own word pacing, not the server's measurement. It
+becomes the server's measurement automatically the moment `text_spoken` /
+`text_remaining` ship, with no code change. Simulator mode is unaffected,
+because there the local strip *is* ground truth.
+
+**Word-strip pacing** uses a measured ~57 ms/char (sampled from three clues
+against staging on 2026-08-11: 54, 57, 67 ms/char). It positions the strip
+against real audio only. It never touches the ledger and never contributes to
+a score.
+
+### Content updated
+
+Units 1 and 3, the Partner-dev, Scaler, Champion, and agent-operator pieces
+were updated to the confirmed GA contract (`playback_offset` as
+`{type:'time_ms',value:N}`, session-cumulative, must strictly advance, unknown
+fields rejected, omitting it silently drops the split) and to state plainly
+that interruption feedback is planned for GA rather than available in EA.
+
+A house-style pass removed all em dashes across `/content` per the drafting
+skill's rules.
+
+**Unit 2 was touched by that punctuation pass only.** Verified mechanically:
+`[verify]` marker count unchanged at 21, and the set of numbers in the file is
+byte-identical before and after. **No figure was filled in or altered.**

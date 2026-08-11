@@ -17,6 +17,7 @@ export class LiveSpeech {
     this.ws = null;
     this.onStarted = () => {};
     this.onReport = () => {};
+    this.onFinished = () => {};
     this.onError = () => {};
     this.speechId = null;
   }
@@ -41,6 +42,7 @@ export class LiveSpeech {
         this.onStarted(msg);
       }
       if (msg.type === 'SpeechInterrupted') this.onReport(msg);
+      if (msg.type === 'SpeechMetadata' || msg.type === 'Flushed') this.onFinished(msg);
       if (msg.type === 'ProxyError' || msg.type === 'Error') this.onError(msg);
     });
 
@@ -63,11 +65,13 @@ export class LiveSpeech {
     this._send({ type: 'start', voice, text });
   }
 
-  // A confirmed buzz. The playback offset is deliberately NOT sent: the
-  // current staging shape rejects every field on this message. The offset is
-  // still captured and held locally at onset — see FLAGS.md F-15.
-  interrupt() {
-    this._send({ type: 'interrupt' });
+  // A confirmed buzz. The offset held at onset is handed to the server, which
+  // decides whether the active shape can carry it: Early Access rejects every
+  // field on Interrupt, GA takes it as `playback_offset` and only returns the
+  // text split when it is present. The plumbing is the same either way, so
+  // nothing here changes when GA lands.
+  interrupt(heldOffsetMs) {
+    this._send({ type: 'interrupt', offsetMs: heldOffsetMs });
   }
 
   stop() {

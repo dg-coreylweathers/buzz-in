@@ -1,8 +1,8 @@
 // Exercises exactly what the browser does: connect to OUR server, receive
 // audio, buzz, read the report. No key on this side of the connection.
 import WebSocket from 'ws';
-import { OffsetLedger } from './src/offsetLedger.js';
-import { getInterruptShape } from './src/interruptShape.js';
+import { OffsetLedger } from '../src/offsetLedger.js';
+import { getInterruptShape } from '../src/interruptShape.js';
 
 const shape = getInterruptShape('staging');
 const ledger = new OffsetLedger({ sampleRate: 48000 });

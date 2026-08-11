@@ -24,7 +24,13 @@ export const SAMPLE_RATE = 48000;
 export const ENCODING = 'linear16';
 
 export class SpeakSession {
-  constructor({ voice, shape = getInterruptShape('staging'), env = resolveEnv() } = {}) {
+  // Defaults to the live-observed Early Access shape. Set
+  // BUZZ_IN_SPEAK_SHAPE=ga once the GA interrupt surface is live.
+  constructor({
+    voice,
+    shape = getInterruptShape(process.env.BUZZ_IN_SPEAK_SHAPE || 'staging'),
+    env = resolveEnv(),
+  } = {}) {
     this.voice = voice;
     this.shape = shape;
     this.env = env;
@@ -75,11 +81,14 @@ export class SpeakSession {
     this._send({ type: 'Flush' });
   }
 
-  // A confirmed buzz. The message is built through the adapter so the shape
-  // stays in one place — and for the staging shape that message is
-  // deliberately field-free.
-  interrupt() {
-    this._send(this.shape.buildInterrupt({ offsetMs: 0 }));
+  // A confirmed buzz. The message is built through the adapter, so which
+  // fields travel is the shape's decision, not this method's. The Early
+  // Access shape emits a field-free Interrupt; the GA shape emits
+  // playback_offset. Sending an offset the server does not accept would be
+  // rejected outright (MESSAGE-0000), which is exactly why this goes through
+  // the adapter.
+  interrupt(offsetMs = 0) {
+    this._send(this.shape.buildInterrupt({ offsetMs: Math.max(0, Number(offsetMs) || 0) }));
   }
 
   _send(obj) {
